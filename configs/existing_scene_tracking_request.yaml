@@ -1,0 +1,19 @@
+task_type: trajectory_tracking
+
+experiment:
+  trajectory_csv: data/trajectory/yantai_quanlujing.csv
+  processed_csv: outputs/trajectories/yantai_quanlujing_existing_scene_standard.csv
+  config:
+    # If this is empty, the runner uses the current CARLA world.
+    # If you want to load a specific map, use the CARLA map name, e.g. Town01 or your custom map.
+    carla_map: YantaiTrackingField
+    vehicle_bp: vehicle.tractor.tractor
+    vehicle_type: tractor
+    output_dir: results/existing_scene_tracking
+    map_offset_x: 50.0
+    map_offset_y: -10.0
+    spawn_z: 2.0
+    dt: 0.05
+    trajectory_flip_y: true
+
+flow_report: outputs/crewai_existing_scene_tracking_report.json

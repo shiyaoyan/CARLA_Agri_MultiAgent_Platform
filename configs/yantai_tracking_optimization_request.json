@@ -1,0 +1,69 @@
+{
+  "task_type": "trajectory_tracking",
+  "natural_language_request": "Run the Yantai tractor trajectory tracking experiment with Bayesian controller self-optimization enabled. Use the initial pure-pursuit and PID parameters as the baseline, run 24 parameter trials under the same simulation conditions, use a Gaussian-process surrogate with expected improvement to select candidates, retain the parameter set with the lowest composite tracking objective, and perform one confirmation run with the best parameters.",
+  "experiment": {
+    "trajectory_csv": "data/trajectory/yantai_quanlujing.csv",
+    "processed_csv": "outputs/yantai_tracking_scene/trajectory/yantai_quanlujing_standard.csv",
+    "config": {
+      "carla_map": "YantaiTrackingField",
+      "vehicle_bp": "vehicle.tractor.tractor",
+      "vehicle_type": "tractor",
+      "output_dir": "results/yantai_tracking_scene/tracking_optimized",
+      "map_offset_x": 50.0,
+      "map_offset_y": -10.0,
+      "spawn_z": 2.0,
+      "trajectory_flip_y": true,
+      "dt": 0.05,
+      "apply_agri_physics": true,
+      "controller": {
+        "max_speed_kmh": 8.0,
+        "k_pos": 0.8,
+        "pure_pursuit": {
+          "wheelbase": 2.5,
+          "max_steer_angle_deg": 48.0,
+          "fwd_lookahead_min": 1.0,
+          "fwd_lookahead_gain": 0.2,
+          "rev_lookahead_min": 0.5,
+          "rev_lookahead_gain": 0.1
+        },
+        "pid": {
+          "kp": 0.95,
+          "ki": 0.22,
+          "kd": 0.03
+        }
+      },
+      "controller_optimization": {
+        "enabled": true,
+        "method": "bayesian_optimization",
+        "max_trials": 24,
+        "confirm_best": true,
+        "initial_random_trials": 8,
+        "candidate_pool_size": 4096,
+        "random_seed": 42,
+        "kernel_length_scale": 0.35,
+        "gp_noise": 1e-06,
+        "expected_improvement_xi": 0.01,
+        "search_space": {
+          "pure_pursuit.fwd_lookahead_min": [0.6, 3.0],
+          "pure_pursuit.fwd_lookahead_gain": [0.0, 0.8],
+          "pure_pursuit.rev_lookahead_min": [0.3, 2.0],
+          "pure_pursuit.rev_lookahead_gain": [0.0, 0.5],
+          "pid.kp": [0.2, 2.0],
+          "pid.ki": [0.0, 0.8],
+          "pid.kd": [0.0, 0.2]
+        },
+        "objective": {
+          "metric_scope": "valid",
+          "lateral_mae_weight": 0.25,
+          "lateral_rmse_weight": 0.35,
+          "lateral_p95_weight": 0.2,
+          "speed_rmse_weight": 0.15,
+          "heading_rmse_weight": 0.05,
+          "minimum_valid_ratio": 0.5,
+          "maximum_lateral_error_m": 5.0
+        }
+      }
+    }
+  },
+  "flow_report": "results/yantai_tracking_scene/tracking_optimized/crewai_flow_report.json"
+}

@@ -1,0 +1,58 @@
+{
+  "registry_name": "yantai_full_process",
+  "map_name": "YantaiTrackingField",
+  "source_code_reference": "yt_quanliucheng.py",
+  "description": "Full-process agricultural navigation task template extracted from yt_quanliucheng.py. The task covers parking-area departure, farm-road navigation, field entry, boustrophedon field operation, bulb turns, field exit and return to the parking area.",
+  "vehicle": {
+    "vehicle_type": "tractor",
+    "vehicle_bp": "vehicle.tractor.tractor",
+    "apply_front_wheel_steering": true,
+    "apply_agri_physics": false
+  },
+  "simulation": {
+    "fixed_delta_seconds": 0.05,
+    "max_steps": 60000,
+    "road_speed_kmh": 13.5,
+    "field_line_speed_kmh": 7.5
+  },
+  "operation": {
+    "harvest_width_m": 3.0,
+    "bulb_turn": {
+      "overshoot_m": 5.0,
+      "swing_m": 8.0,
+      "side_m": 2.0
+    }
+  },
+  "locations": {
+    "garage_spawn": [74.0, -8.0, 2.0, 90.0],
+    "road_entry": [74.0, -8.0, 2.0],
+    "garage_return": [74.0, -8.0, 2.0],
+    "field_top_left": [150.0, -80.0, 0.5],
+    "field_top_right": [150.0, -40.0, 0.5],
+    "field_bottom_right": [50.0, -40.0, 0.5],
+    "field_bottom_left": [50.0, -80.0, 0.5],
+    "field_entry": [50.0, -80.0, 0.5],
+    "field_exit": [50.0, -80.0, 0.5],
+    "field_exit_road": [50.0, -98.0, 0.5]
+  },
+  "task_stages": [
+    "GARAGE_EXIT",
+    "ROAD_NAV",
+    "OFFROAD_APPROACH",
+    "HARVEST_LINE",
+    "TURN_BULB",
+    "FIELD_EXIT",
+    "ROAD_RETURN",
+    "GARAGE_RETURN"
+  ],
+  "evaluation_items": [
+    "task_completion",
+    "stage_transition",
+    "forward_reverse_operation",
+    "collision_event",
+    "total_travel_distance",
+    "operation_path_length",
+    "task_duration",
+    "path_plot"
+  ]
+}

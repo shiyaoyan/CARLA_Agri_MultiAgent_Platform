@@ -1,0 +1,4 @@
+﻿time,code,message
+33.7,PHASE_SHIFT,Controller state-machine event
+52.650000000000006,PHASE_SHIFT,Controller state-machine event
+75.7,FINISHED,The trajectory replay finished with stable position and speed.

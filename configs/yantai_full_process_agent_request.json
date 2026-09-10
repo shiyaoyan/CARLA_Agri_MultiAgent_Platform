@@ -1,0 +1,35 @@
+{
+  "task_type": "full_process_navigation",
+  "natural_language_request": "I want to test a full-process agricultural navigation task on the already imported CARLA map YantaiTrackingField. Use the tractor blueprint vehicle.tractor.tractor. The tractor should start from the parking area, enter the farm road, drive to the field entrance, perform boustrophedon field operation with a 3 m working width and bulb turns at the headland, then leave the field, return along the farm road and stop at the parking area. Please record task completion, stage transition, collision events, total travel distance, operation path length and total task duration, and output the travelled path plot and evaluation table.",
+  "map_task_registry": "configs/map_task_registry/yantai_full_process.json",
+  "machinery": {
+    "type": "tractor",
+    "model_file": "vehicle.tractor.tractor",
+    "output_file": "outputs/yantai_full_process/templates/default_tractor_physics.json"
+  },
+  "experiment": {
+    "config": {
+      "carla_map": "YantaiTrackingField",
+      "vehicle_bp": "vehicle.tractor.tractor",
+      "vehicle_type": "tractor",
+      "output_dir": "results/full_process_navigation/yantai_agent_case",
+      "fixed_delta_seconds": 0.05,
+      "road_speed_kmh": 13.5,
+      "field_line_speed_kmh": 7.5,
+      "max_steps": 60000,
+      "apply_front_wheel_steering": true,
+      "apply_agri_physics": false,
+      "harvest_width_m": 3.0,
+      "garage_spawn": [74.0, -8.0, 2.0, 90.0],
+      "road_entry": [74.0, -8.0, 2.0],
+      "field_top_left": [150.0, -80.0, 0.5],
+      "field_top_right": [150.0, -40.0, 0.5],
+      "field_bottom_right": [50.0, -40.0, 0.5],
+      "field_bottom_left": [50.0, -80.0, 0.5],
+      "field_entry": [50.0, -80.0, 0.5],
+      "field_exit": [50.0, -80.0, 0.5],
+      "field_exit_road": [50.0, -98.0, 0.5]
+    }
+  },
+  "flow_report": "results/full_process_navigation/yantai_agent_case/crewai_flow_report.json"
+}

@@ -1,0 +1,55 @@
+map_name: FarmRoadFromSatellite
+image_width_px: 1600
+image_height_px: 900
+meters_per_pixel: 0.25
+north_up: true
+speed_kph: 20.0
+scene_profile: agricultural
+description: Prevalidated agricultural road geometry used for an offline SGA smoke test.
+
+topology_validation:
+  enabled: true
+  auto_repair: true
+  max_regeneration_attempts: 2
+  endpoint_tolerance_m: 0.5
+  max_endpoint_snap_m: 20.0
+  merge_node_tolerance_m: 0.75
+  bridge_max_gap_m: 8.0
+  require_single_component: true
+  fail_on_unresolved: true
+
+geo_anchor:
+  latitude: 37.43327171
+  longitude: 121.51276190
+  pixel_x: 120.0
+  pixel_y: 180.0
+
+nodes:
+  - node_id: n1
+    pixel: [150.0, 220.0]
+  - node_id: n2
+    pixel: [520.0, 230.0]
+  - node_id: n3
+    pixel: [760.0, 420.0]
+
+roads:
+  - road_id: farm_road_1
+    start_node: n1
+    end_node: n2
+    width_m: 3.5
+    surface: dirt
+    pixel_polyline:
+      - [150.0, 220.0]
+      - [260.0, 225.0]
+      - [390.0, 228.0]
+      - [520.0, 230.0]
+  - road_id: farm_road_2
+    start_node: n2
+    end_node: n3
+    width_m: 3.5
+    surface: gravel
+    pixel_polyline:
+      - [520.0, 230.0]
+      - [610.0, 300.0]
+      - [690.0, 360.0]
+      - [760.0, 420.0]

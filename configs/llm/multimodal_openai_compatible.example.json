@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "provider": "openai_compatible",
+  "model": "REPLACE_WITH_A_VISION_AND_JSON_CAPABLE_MODEL",
+  "base_url": "REPLACE_WITH_THE_PROVIDER_OPENAI_COMPATIBLE_V1_URL",
+  "api_key_env": "MULTIMODAL_LLM_API_KEY",
+  "timeout_s": 180,
+  "temperature": 0.0,
+  "max_tokens": 8000,
+  "include_images": true,
+  "max_repair_attempts": 2
+}

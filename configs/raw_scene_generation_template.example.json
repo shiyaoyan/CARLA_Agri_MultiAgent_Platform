@@ -1,0 +1,23 @@
+{
+  "task_type": "configuration_only",
+  "road_scene_request": {
+    "map_name": "RawSatelliteAgriculturalScene",
+    "meters_per_pixel": 0.2,
+    "north_up": true,
+    "geo_anchor": {
+      "latitude": 37.0,
+      "longitude": 121.0,
+      "pixel_x": 640,
+      "pixel_y": 480
+    },
+    "scene_profile": "agricultural"
+  },
+  "road_scene_output_dir": "outputs/raw_satellite_scene/road_scene",
+  "vegetation_request": {
+    "carla_map": "RawSatelliteAgriculturalScene",
+    "meters_per_pixel": 0.2,
+    "north_up": true,
+    "dry_run": true,
+    "output_dir": "outputs/raw_satellite_scene/vegetation"
+  }
+}

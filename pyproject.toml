@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "carla-agri-multiagent-platform"
+version = "0.2.0"
+description = "A CrewAI-managed CARLA platform for agricultural autonomous navigation experiments."
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [{name = "shiyaoyan"}]
+requires-python = ">=3.8"
+classifiers = [
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering",
+]
+dependencies = [
+  "numpy>=1.23,<2.0; python_version < '3.13'",
+  "numpy>=2.1,<3; python_version >= '3.13'",
+  "pandas>=1.5,<2.1; python_version < '3.13'",
+  "pandas>=2.2.3,<3; python_version >= '3.13'",
+  "matplotlib>=3.6,<3.8; python_version < '3.13'",
+  "matplotlib>=3.9,<4; python_version >= '3.13'",
+  "PyYAML>=6,<7",
+  "Pillow>=9.2,<11; python_version < '3.13'",
+  "Pillow>=11,<12; python_version >= '3.13'",
+  "Shapely>=1.8.5,<2.1; python_version < '3.13'",
+  "Shapely>=2.0.7,<3; python_version >= '3.13'",
+  "networkx>=2.8.8,<3.2; python_version < '3.13'",
+  "networkx>=3.4,<4; python_version >= '3.13'",
+]
+
+[project.optional-dependencies]
+manager = [
+  "crewai==1.15.12; python_version >= '3.10' and python_version < '3.14'",
+  "python-dotenv>=1.0,<2; python_version >= '3.10' and python_version < '3.14'",
+]
+
+[project.scripts]
+agri-carla-crew = "agri_carla.crewai_runtime.cli:main"
+agri-carla-worker = "agri_carla.worker.server:main"
+
+[tool.setuptools.packages.find]
+include = ["agri_carla*", "roadrunner_mcp*"]
+
+[tool.setuptools.package-data]
+"agri_carla.llm" = ["*.json"]
+"agri_carla.crewai_runtime" = ["config/*.yaml"]

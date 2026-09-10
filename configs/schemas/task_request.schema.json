@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CARLA agricultural simulation task request",
+  "type": "object",
+  "required": ["task_type"],
+  "$defs": {
+    "vegetationRegion": {
+      "type": "object",
+      "description": "A non-zero-area scene polygon inferred from the original satellite image and the user's spatial description, or corrected from an optional second-round annotation image. An isolated point never denotes an individual tree.",
+      "required": ["name", "polygon"],
+      "properties": {
+        "name": {"type": "string"},
+        "kind": {"type": "string", "enum": ["tree", "grass"]},
+        "coordinate_mode": {"type": "string", "enum": ["pixel", "world"]},
+        "polygon": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {"type": "number"}
+          }
+        },
+        "blueprint_filter": {"type": "string"},
+        "density_per_100m2": {"type": "number", "minimum": 0},
+        "grid_spacing_m": {"type": "number", "exclusiveMinimum": 0},
+        "min_spacing_m": {"type": "number", "minimum": 0},
+        "visual_mode": {"type": "string"}
+      }
+    }
+  },
+  "properties": {
+    "task_type": {
+      "enum": [
+        "trajectory_tracking",
+        "full_process_navigation",
+        "configuration_only",
+        "scene_enrichment"
+      ]
+    },
+    "natural_language_request": {"type": "string"},
+    "road_scene_request": {
+      "type": "object",
+      "description": "Required when a new agricultural road scene must be generated. The multimodal model grounds candidate road geometry in the original satellite image and the user's spatial description; a later correction image may revise it. image_path is retained for candidate review but may be omitted when replaying previously confirmed structured geometry.",
+      "required": [
+        "map_name",
+        "image_width_px",
+        "image_height_px",
+        "meters_per_pixel",
+        "geo_anchor",
+        "nodes",
+        "roads"
+      ],
+      "properties": {
+        "map_name": {"type": "string"},
+        "image_path": {"type": "string"},
+        "image_width_px": {"type": "integer", "minimum": 1},
+        "image_height_px": {"type": "integer", "minimum": 1},
+        "meters_per_pixel": {"type": "number", "exclusiveMinimum": 0},
+        "north_up": {"type": "boolean"},
+        "speed_kph": {"type": "number", "exclusiveMinimum": 0},
+        "scene_profile": {"type": "string"},
+        "description": {"type": "string"},
+        "geo_anchor": {
+          "type": "object",
+          "required": ["latitude", "longitude", "pixel_x", "pixel_y"],
+          "properties": {
+            "latitude": {"type": "number"},
+            "longitude": {"type": "number"},
+            "pixel_x": {"type": "number"},
+            "pixel_y": {"type": "number"}
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["node_id", "pixel"],
+            "properties": {
+              "node_id": {"type": "string"},
+              "pixel": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {"type": "number"}
+              }
+            }
+          }
+        },
+        "roads": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "road_id",
+              "start_node",
+              "end_node",
+              "width_m",
+              "surface",
+              "pixel_polyline"
+            ],
+            "properties": {
+              "road_id": {"type": "string"},
+              "start_node": {"type": "string"},
+              "end_node": {"type": "string"},
+              "width_m": {"type": "number", "exclusiveMinimum": 0},
+              "surface": {"type": "string"},
+              "pixel_polyline": {
+                "type": "array",
+                "minItems": 2,
+                "items": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {"type": "number"}
+                }
+              }
+            }
+          }
+        },
+        "topology_validation": {"type": "object"},
+        "geometry_validation": {"type": "object"}
+      }
+    },
+    "multimodal_geometry": {
+      "type": "object",
+      "description": "PGA provenance record for multimodal road and vegetation recognition."
+    },
+    "scene_review": {
+      "type": "object",
+      "description": "Human review gate for multimodal scene geometry before SGA execution.",
+      "properties": {
+        "status": {"type": "string", "enum": ["candidate", "confirmed"]},
+        "requires_confirmation": {"type": "boolean"},
+        "confirmed_by_user": {"type": "boolean"},
+        "original_image_path": {"type": "string"},
+        "correction_image_paths": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "preview_path": {"type": "string"},
+        "preview_error": {"type": "string"},
+        "revision_round": {"type": "integer", "minimum": 1},
+        "revision_guidance": {"type": "string"}
+      }
+    },
+    "road_scene_output_dir": {"type": "string"},
+    "vegetation_request": {
+      "type": "object",
+      "description": "Candidate tree-belt and grass/farmland polygons grounded in the original image and user description, with optional correction-image revision.",
+      "required": [
+        "carla_map",
+        "image_width_px",
+        "image_height_px",
+        "meters_per_pixel",
+        "tree_regions",
+        "grass_regions"
+      ],
+      "properties": {
+        "carla_map": {"type": "string"},
+        "image_width_px": {"type": "integer", "minimum": 1},
+        "image_height_px": {"type": "integer", "minimum": 1},
+        "meters_per_pixel": {"type": "number", "exclusiveMinimum": 0},
+        "north_up": {"type": "boolean"},
+        "geo_anchor": {"type": "object"},
+        "dry_run": {"type": "boolean"},
+        "output_dir": {"type": "string"},
+        "tree_regions": {
+          "type": "array",
+          "description": "Requested tree-belt areas inferred from image and text or revised by elongated correction polygons; individual point annotations are unsupported.",
+          "items": {"$ref": "#/$defs/vegetationRegion"}
+        },
+        "grass_regions": {
+          "type": "array",
+          "description": "Requested non-colliding farmland/grass areas inferred from image and text or revised by closed correction polygons.",
+          "items": {"$ref": "#/$defs/vegetationRegion"}
+        }
+      }
+    },
+    "machinery": {
+      "type": "object",
+      "properties": {
+        "type": {"type": "string", "enum": ["tractor"]},
+        "model_file": {"type": "string"},
+        "output_file": {"type": "string"}
+      }
+    },
+    "experiment": {
+      "type": "object",
+      "properties": {
+        "trajectory_csv": {"type": "string"},
+        "processed_csv": {"type": "string"},
+        "parameter_optimization_set_dir": {"type": "string"},
+        "independent_test_set_dir": {"type": "string"},
+        "processed_dataset_dir": {"type": "string"},
+        "config": {
+          "type": "object",
+          "description": "CARLA map, vehicle blueprint and experiment-specific settings."
+        }
+      }
+    },
+    "map_task_registry": {"type": "string"},
+    "flow_report": {"type": "string"}
+  },
+  "additionalProperties": true
+}

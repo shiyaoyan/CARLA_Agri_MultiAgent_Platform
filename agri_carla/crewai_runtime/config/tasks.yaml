@@ -1,0 +1,35 @@
+pga:
+  description: >
+    For task {task_id}, call the assigned platform tool exactly once with
+    operation={operation}, step_id={step_id}, and attempt={attempt}. The validated
+    request is already bound to the tool. Do not solve or rewrite the request yourself.
+  expected_output: A JSON object returned unchanged by the assigned platform tool.
+
+sga:
+  description: >
+    For task {task_id}, call the assigned SGA tool exactly once with
+    operation={operation}, step_id={step_id}, and attempt={attempt}.
+    Do not modify confirmed coordinates, topology, widths, surfaces, farmland regions,
+    or tree-belt regions.
+  expected_output: The exact JSON artifact manifest returned by the SGA tool.
+
+mca:
+  description: >
+    For task {task_id}, call the assigned MCA tool exactly once with
+    operation={operation}, step_id={step_id}, and attempt={attempt}.
+    Do not add physical parameters not present in the platform template.
+  expected_output: The exact JSON machinery configuration returned by the MCA tool.
+
+cia:
+  description: >
+    For task {task_id}, call the assigned CIA tool exactly once with
+    operation={operation}, step_id={step_id}, and attempt={attempt}.
+    Do not replace or redesign the implemented controller.
+  expected_output: The exact JSON controller manifest returned by the CIA tool.
+
+eea:
+  description: >
+    For task {task_id}, call the assigned EEA tool exactly once with
+    operation={operation}, step_id={step_id}, and attempt={attempt}.
+    Do not fabricate simulation completion, metrics, paths, or artifacts.
+  expected_output: The exact JSON experiment result returned by the EEA tool.
