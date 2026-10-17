@@ -1,0 +1,16 @@
+trajectory,group,operation_type,rows,duration_s,path_length_m,width_m,height_m,reverse_rows,mean_speed_kmh,max_speed_kmh,source,raw_range,note
+TS01_straight_line,TS-Tune,straight_line,228,228,265.29,257.0,20.89,0,4.198,5.479,20260109_053725::segment_025_straight_line_20260109_053725_16361_17497.csv,16361-17497,archive segment as supplied
+TS02_straight_line,TS-Tune,straight_line,187,187,264.65,258.85,16.04,0,5.105,7.334,20260109_053725::segment_012_straight_line_20260109_053725_2235_3167.csv,2235-3167,archive segment as supplied
+TS03_regular_operation,TS-Tune,regular_operation,103,103,197.82,20.38,91.74,0,6.989,8.006,20251228_074155::segment_001_regular_operation_20251228_074155_212_1407.csv,212-722,TRIMMED to one lap: first 103 of 239 points
+TS04_regular_operation,TS-Tune,regular_operation,189,189,177.88,19.29,85.03,0,3.41,4.28,20251230_060125::segment_010_regular_operation_20251230_060125_23805_25571.csv,23805-24745,TRIMMED to one lap: first 189 of 353 points
+TS05_complex_operation,TS-Tune,complex_operation,598,598,610.49,20.5,99.89,0,3.677,4.47,20251230_060125::segment_008_complex_operation_20251230_060125_13719_16704.csv,13719-16704,archive segment as supplied
+TS06_complex_operation,TS-Tune,complex_operation,610,610,604.94,19.74,93.93,0,3.573,4.537,20251230_060125::segment_011_complex_operation_20251230_060125_26204_29252.csv,26204-29252,archive segment as supplied
+TS07_bulb_turn,TS-Tune,bulb_turn,50,50,35.17,8.24,15.62,0,2.59,3.02,20260827_085955::segment_001_bulb_turn_20260827_170915.csv,2749-2994,RE-CUT from raw with +10s neck each end (was 2799-2944)
+TS08_bulb_turn,TS-Tune,bulb_turn,48,48,38.86,7.81,17.55,0,2.98,3.475,20260827_085955::segment_004_bulb_turn_20260827_171245.csv,3799-4034,RE-CUT from raw with +10s neck each end (was 3849-3984)
+TS09_fishtail_turn,TS-Tune,fishtail_turn,78,78,29.55,7.03,10.26,29,1.4,4.375,20260827_085955::segment_007_fishtail_turn_20260827_171557.csv,4809-5194,archive segment as supplied
+TS10_fishtail_turn,TS-Tune,fishtail_turn,61,61,31.16,7.82,10.97,21,1.885,4.108,20260827_085955::segment_010_fishtail_turn_20260827_172051.csv,6279-6579,archive segment as supplied
+EXP01_complex_operation,EXP-FTT,complex_operation,570,570,533.37,13.97,105.94,14,3.369,7.428,yantai_quanlujing.csv (2026-05-12),0-0,original EXP-FTT file (has 14 reverse points)
+EXP02_regular_operation,EXP-FTT,regular_operation,158,158,188.43,13.69,90.11,0,4.294,7.072,yantai_yiquan.csv (2026-05-12),0-0,original EXP-FTT file
+EXP03_straight_line,EXP-FTT,straight_line,63,63,68.44,6.19,68.05,0,3.995,7.072,yantai_zhixian.csv (2026-05-12),0-0,original EXP-FTT file
+EXP04_bulb_turn,EXP-FTT,bulb_turn,61,61,47.35,6.57,21.66,0,2.848,5.379,yantai_dengpao.csv (2026-05-12),0-0,original EXP-FTT file
+EXP05_fishtail_turn,EXP-FTT,fishtail_turn,85,85,42.94,7.27,19.47,14,1.819,5.425,yantai_yuwei_reverse_optimized.csv (2026-05-12),0-0,original EXP-FTT file (has 14 reverse points)

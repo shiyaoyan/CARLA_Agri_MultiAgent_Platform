@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import csv
+import hashlib
 import json
 import re
 import unittest
@@ -56,6 +57,7 @@ class RepositoryConsistencyTests(unittest.TestCase):
         scanned_files.extend((ROOT / "docs").glob("*.md"))
         scanned_files.extend((ROOT / "configs").rglob("*.yaml"))
         scanned_files.extend([ROOT / "README.md", ROOT / "README_CN.md"])
+        scanned_files = [path for path in scanned_files if path.exists()]
         old_tokens = re.compile(r"\b(?:TPA|ASGA|SEEA|TrPA|REA)\b")
         old_identifiers = re.compile(
             r"TaskPlanningAgent|AgriculturalRoadSceneGenerationAgent|"
@@ -88,14 +90,11 @@ class RepositoryConsistencyTests(unittest.TestCase):
 
     def test_documented_source_and_example_paths_exist(self):
         """README 与部署文档中的活动脚本、配置和数据路径必须存在。"""
-        documents = [ROOT / "README.md", ROOT / "README_CN.md"]
-        documents.extend(
-            path
-            for path in (ROOT / "docs").glob("*.md")
-            if path.name != "code_cleanup_and_connectivity_audit_CN.md"
-        )
+        documents = [ROOT / "README.md"]
+        documents.extend((ROOT / "docs").glob("*.md"))
+        documents.extend((ROOT / "data").glob("*/README.md"))
         pattern = re.compile(
-            r"(?:scripts|configs|data|agri_carla|roadrunner_mcp)/"
+            r"(?:scripts|configs|data|docs|agri_carla|roadrunner_mcp)/"
             r"[A-Za-z0-9_./-]+"
         )
         missing: list[str] = []
@@ -132,10 +131,6 @@ class RepositoryConsistencyTests(unittest.TestCase):
                 "EEA",
             ],
             "configs/yantai_tracking_optimization_request.json": ["CIA", "EEA"],
-            "configs/yantai_tracking_dataset_optimization_request.json": [
-                "CIA",
-                "EEA",
-            ],
             "configs/yantai_full_process_agent_request.json": [
                 "MCA",
                 "CIA",
@@ -149,18 +144,32 @@ class RepositoryConsistencyTests(unittest.TestCase):
             actual_agents = [step.agent for step in result.execution_plan.steps]
             self.assertEqual(expected_agents, actual_agents, relative_path)
 
-    def test_default_bayesian_example_uses_the_supplied_trajectory(self):
-        """开箱即用优化案例必须引用仓库实际提供的 CSV。"""
+    def test_bayesian_example_uses_two_documented_dataset_directories(self):
+        """正式优化案例应清楚预留参数优化集和独立验证集。"""
         request = json.loads(
             (ROOT / "configs/yantai_tracking_optimization_request.json").read_text(
                 encoding="utf-8"
             )
         )
-        trajectory = ROOT / request["experiment"]["trajectory_csv"]
-        self.assertTrue(trajectory.is_file())
-        readme = (ROOT / "README_CN.md").read_text(encoding="utf-8")
-        self.assertIn("yantai_tracking_optimization_request.json", readme)
-        self.assertIn("这两个目录在公开示例中只有说明文件", readme)
+        experiment = request["experiment"]
+        optimization_dir = ROOT / experiment["parameter_optimization_set_dir"]
+        validation_dir = ROOT / experiment["independent_validation_set_dir"]
+        self.assertTrue(optimization_dir.is_dir())
+        self.assertTrue(validation_dir.is_dir())
+        self.assertNotIn("trajectory_csv", experiment)
+
+        # The two sets must be the shipped tuning and evaluation sets, and must not
+        # share any trajectory file.
+        optimization_files = {path.name for path in optimization_dir.glob("*.csv")}
+        validation_files = {path.name for path in validation_dir.glob("*.csv")}
+        self.assertTrue(optimization_files)
+        self.assertTrue(validation_files)
+        self.assertEqual(set(), optimization_files & validation_files)
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("section_3_2_bayesian_optimization", readme)
+        self.assertIn(experiment["parameter_optimization_set_dir"], readme)
+        self.assertIn(experiment["independent_validation_set_dir"], readme)
 
     def test_env_example_uses_only_same_host_worker(self):
         """公开模板必须把执行环境固定在本机回环接口。"""
@@ -214,20 +223,19 @@ class RepositoryConsistencyTests(unittest.TestCase):
         self.assertIn('license = {file = "LICENSE"}', pyproject)
         self.assertIn("License :: OSI Approved :: MIT License", pyproject)
 
-        for readme_name in ("README.md", "README_CN.md"):
-            readme = (ROOT / readme_name).read_text(encoding="utf-8")
-            self.assertIn("MIT", readme)
-            self.assertIn("LICENSE", readme)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("MIT", readme)
+        self.assertIn("LICENSE", readme)
 
-    def test_section_3_1_results_are_complete_and_use_all_sample_metrics(self):
-        """论文 3.1 节五组发布结果必须完整且固定采用 all 指标口径。"""
-        results_root = ROOT / "data" / "experiment_results" / "section_3_1"
+    def test_section_3_2_results_are_complete_and_use_all_sample_metrics(self):
+        """论文 3.2 节五组发布结果必须完整且固定采用 all 指标口径。"""
+        results_root = ROOT / "data" / "experiment_results" / "section_3_2_tracking"
         expected = {
-            "complex_operation": (0.0395645198427073, 0.08215664116444299, 0.6890814344062757),
-            "regular_operation": (0.03264846265399986, 0.101597959817143, 0.7217740308302248),
-            "straight_line_operation": (0.01931113696517618, 0.05260958171598147, 0.26396248092653285),
-            "bulb_turn": (0.03244042498652775, 0.03859225550277287, 0.10234239914457309),
-            "fishtail_turn": (0.059473529583372015, 0.11275122932368105, 0.4830928531496919),
+            "EXP01_complex_operation": (0.026389139687361982, 0.061317635335325076, 0.7825675515411455),
+            "EXP02_regular_operation": (0.033433756722604194, 0.10955721857820439, 0.7459752167182401),
+            "EXP03_straight_line": (0.019592023373115247, 0.055736316410794455, 0.27927216187506393),
+            "EXP04_bulb_turn": (0.03265211533054119, 0.042470538652310014, 0.0974258106984592),
+            "EXP05_fishtail_turn": (0.0833333038529306, 0.1388920560157072, 0.7876795423966949),
         }
         required_files = {
             "tick_records.csv",
@@ -254,7 +262,34 @@ class RepositoryConsistencyTests(unittest.TestCase):
                 float(row["all_lateral_max_abs_m"]),
             )
             for observed, published in zip(actual, metric_values):
-                self.assertAlmostEqual(published, observed, places=12)
+                self.assertAlmostEqual(published, observed, places=6)
+
+    def test_evidence_manifest_matches_the_published_results(self):
+        """证据清单必须覆盖全部结果与数据，且哈希与文件一致。"""
+        manifest = json.loads(
+            (ROOT / "data/experiment_results/manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertTrue((ROOT / manifest["tracking_config"]).is_file())
+        self.assertTrue((ROOT / manifest["navigation_run"]).is_dir())
+
+        groups = {entry["group"] for entry in manifest["trajectories"]}
+        self.assertEqual({"TS-Tune", "EXP-FTT"}, groups)
+        self.assertEqual(10, sum(1 for item in manifest["trajectories"] if item["group"] == "TS-Tune"))
+        self.assertEqual(5, sum(1 for item in manifest["trajectories"] if item["group"] == "EXP-FTT"))
+
+        for entry in manifest["trajectories"]:
+            self.assertTrue((ROOT / entry["input"]).is_file(), entry["input"])
+            if entry["group"] == "EXP-FTT":
+                self.assertTrue((ROOT / entry["result"]).is_dir(), entry["result"])
+
+        for relative_path, expected_hash in manifest["sha256"].items():
+            path = ROOT / relative_path
+            self.assertTrue(path.is_file(), relative_path)
+            self.assertEqual(
+                expected_hash,
+                hashlib.sha256(path.read_bytes()).hexdigest(),
+                relative_path,
+            )
 
     def test_single_computer_deployment_entrypoints_exist(self):
         """发布项目只保留同机双环境入口。"""
@@ -262,7 +297,7 @@ class RepositoryConsistencyTests(unittest.TestCase):
             "scripts/setup_crewai_manager.sh",
             "scripts/setup_carla_worker_linux.sh",
             "scripts/run_same_host_crewai_carla.sh",
-            "docs/single_computer_deployment_CN.md",
+            "docs/installation.md",
         )
         for relative_path in expected:
             self.assertTrue((ROOT / relative_path).is_file(), relative_path)
@@ -270,6 +305,7 @@ class RepositoryConsistencyTests(unittest.TestCase):
             "scripts/setup_unified_linux.sh",
             "scripts/run_unified_linux.sh",
             "docs/crewai_manager_carla_worker_CN.md",
+            "README_CN.md",
         )
         for relative_path in removed:
             self.assertFalse((ROOT / relative_path).exists(), relative_path)

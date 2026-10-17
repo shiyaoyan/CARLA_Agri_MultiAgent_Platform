@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 from typing import Any
 
 
@@ -30,12 +31,13 @@ class DomainExecutionService:
                 request["road_scene_request"],
                 output_dir,
                 context=context,
+                vegetation_request=request.get("vegetation_request"),
             )
             return dict(result.__dict__)
 
         if agent == "SGA" and operation == "place_vegetation":
             return self._sga().run_vegetation(
-                request["vegetation_request"],
+                self._vegetation_request(request),
                 context=context,
             )
 
@@ -77,6 +79,8 @@ class DomainExecutionService:
             tracking_config = TrackingExperimentConfig.from_dict(
                 experiment.get("config", {})
             )
+            if request.get("vegetation_request") and not request["vegetation_request"].get("dry_run", False):
+                tracking_config.vegetation_request = self._vegetation_request(request)
             return self._eea().run_trajectory_tracking(
                 trajectory_csv=experiment.get("trajectory_csv"),
                 processed_csv=experiment.get("processed_csv"),
@@ -84,8 +88,8 @@ class DomainExecutionService:
                 parameter_optimization_set_dir=experiment.get(
                     "parameter_optimization_set_dir"
                 ),
-                independent_test_set_dir=experiment.get(
-                    "independent_test_set_dir"
+                independent_validation_set_dir=experiment.get(
+                    "independent_validation_set_dir"
                 ),
                 processed_dataset_dir=experiment.get("processed_dataset_dir"),
                 context=context,
@@ -100,12 +104,25 @@ class DomainExecutionService:
             full_process_config = FullProcessExperimentConfig(
                 **experiment.get("config", {})
             )
+            if request.get("vegetation_request") and not request["vegetation_request"].get("dry_run", False):
+                full_process_config.vegetation_request = self._vegetation_request(request)
             return self._eea().run_full_process_navigation(
                 full_process_config,
                 context=context,
             )
 
         raise ValueError("Unsupported execution step: %s/%s" % (agent, operation))
+
+    @staticmethod
+    def _vegetation_request(request):
+        from agri_carla.agents.scene_generation import vegetation_with_road_context
+
+        if request.get("road_scene_request"):
+            path = Path(request.get("road_scene_output_dir", "outputs/road_scene")) / "vegetation_runtime_request.json"
+            if not path.is_file():
+                raise ValueError("Generate the finalized scene before placing its vegetation.")
+            return json.loads(path.read_text(encoding="utf-8"))
+        return vegetation_with_road_context(request["vegetation_request"])
 
     def _sga(self):
         if self._scene_generation_agent is None:

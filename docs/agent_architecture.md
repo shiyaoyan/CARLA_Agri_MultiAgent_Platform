@@ -56,6 +56,27 @@ agri_carla/crewai_runtime/config/tasks.yaml
 SQLite. CrewAI persistence stores Flow state. The store does not decide which
 agent runs next and is therefore not a second orchestrator.
 
+## Prompt-first Reproduction Contract
+
+The paper examples are declared in `configs/paper_cases.json`; their complete
+natural-language inputs are stored in `configs/prompts/paper_cases/`. The
+`scripts/run_paper_case.py` entry deliberately builds an input containing a
+prompt and attachments only. It rejects prebuilt `task_type`,
+`structured_request`, `structured_request_file` and `request_template` fields.
+
+After planning, the runner verifies all of the following before reporting a
+paper case as reproducible:
+
+- PGA reports `planning_source=llm`;
+- the LLM-generated request passes path and execution-contract validation;
+- the generated task type matches the manifest;
+- the allow-listed agent/operation sequence exactly matches the manifest.
+
+Final JSON requests under `configs/` are retained only as readable examples and
+regression fixtures. They are not used as the primary input by the paper-case
+runner. Each real run persists its original prompt-bearing payload, generated
+structured request, validation report and execution plan in the task ledger.
+
 Default runtime paths are:
 
 ```text
@@ -88,6 +109,10 @@ meshes, textures, previews and CARLA import bundles. It validates road
 connectivity and repairs only gaps that fall within configured limits. It also
 turns PGA-validated and user-confirmed farmland and tree-belt polygons into
 vegetation plans; it does not reinterpret the satellite image.
+Confirmed farmland boundaries are baked into the map FBX. Optional roadside
+belts are sampled outside the finalized OpenDRIVE footprint, with density and
+minimum-spacing constraints. Missing assets fail explicitly; EEA reapplies
+runtime vegetation after resetting its map.
 
 ### MCA
 
@@ -100,7 +125,8 @@ Engine source assets.
 `ControllerInterfaceAgent` prepares direction-aware pure-pursuit control, PID
 speed control and gear-state settings. Its optional Bayesian optimization
 searches controller parameters through repeated EEA experiments and locks the
-best observed configuration before independent testing.
+best observed configuration before evaluation on a disjoint, multi-trajectory
+independent validation set.
 
 ### EEA
 

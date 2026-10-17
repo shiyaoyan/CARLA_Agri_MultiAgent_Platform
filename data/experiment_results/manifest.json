@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "description": "Evidence manifest for the published experiments. Every path below is relative to the project root and every hash is the SHA-256 of the archived file.",
+  "tracking_config": "data/experiment_results/section_3_2_config.json",
+  "navigation_run": "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca",
+  "trajectories": [
+    {
+      "id": "TS01_straight_line",
+      "group": "TS-Tune",
+      "operation_type": "straight_line",
+      "input": "data/trajectory/TS-Tune/TS01_straight_line.csv",
+      "rows": 228
+    },
+    {
+      "id": "TS02_straight_line",
+      "group": "TS-Tune",
+      "operation_type": "straight_line",
+      "input": "data/trajectory/TS-Tune/TS02_straight_line.csv",
+      "rows": 187
+    },
+    {
+      "id": "TS03_regular_operation",
+      "group": "TS-Tune",
+      "operation_type": "regular_operation",
+      "input": "data/trajectory/TS-Tune/TS03_regular_operation.csv",
+      "rows": 103
+    },
+    {
+      "id": "TS04_regular_operation",
+      "group": "TS-Tune",
+      "operation_type": "regular_operation",
+      "input": "data/trajectory/TS-Tune/TS04_regular_operation.csv",
+      "rows": 189
+    },
+    {
+      "id": "TS05_complex_operation",
+      "group": "TS-Tune",
+      "operation_type": "complex_operation",
+      "input": "data/trajectory/TS-Tune/TS05_complex_operation.csv",
+      "rows": 598
+    },
+    {
+      "id": "TS06_complex_operation",
+      "group": "TS-Tune",
+      "operation_type": "complex_operation",
+      "input": "data/trajectory/TS-Tune/TS06_complex_operation.csv",
+      "rows": 610
+    },
+    {
+      "id": "TS07_bulb_turn",
+      "group": "TS-Tune",
+      "operation_type": "bulb_turn",
+      "input": "data/trajectory/TS-Tune/TS07_bulb_turn.csv",
+      "rows": 50
+    },
+    {
+      "id": "TS08_bulb_turn",
+      "group": "TS-Tune",
+      "operation_type": "bulb_turn",
+      "input": "data/trajectory/TS-Tune/TS08_bulb_turn.csv",
+      "rows": 48
+    },
+    {
+      "id": "TS09_fishtail_turn",
+      "group": "TS-Tune",
+      "operation_type": "fishtail_turn",
+      "input": "data/trajectory/TS-Tune/TS09_fishtail_turn.csv",
+      "rows": 78
+    },
+    {
+      "id": "TS10_fishtail_turn",
+      "group": "TS-Tune",
+      "operation_type": "fishtail_turn",
+      "input": "data/trajectory/TS-Tune/TS10_fishtail_turn.csv",
+      "rows": 61
+    },
+    {
+      "id": "EXP01_complex_operation",
+      "group": "EXP-FTT",
+      "operation_type": "complex_operation",
+      "input": "data/trajectory/EXP-FTT/EXP01_complex_operation.csv",
+      "rows": 570,
+      "result": "data/experiment_results/section_3_2_tracking/EXP01_complex_operation"
+    },
+    {
+      "id": "EXP02_regular_operation",
+      "group": "EXP-FTT",
+      "operation_type": "regular_operation",
+      "input": "data/trajectory/EXP-FTT/EXP02_regular_operation.csv",
+      "rows": 158,
+      "result": "data/experiment_results/section_3_2_tracking/EXP02_regular_operation"
+    },
+    {
+      "id": "EXP03_straight_line",
+      "group": "EXP-FTT",
+      "operation_type": "straight_line",
+      "input": "data/trajectory/EXP-FTT/EXP03_straight_line.csv",
+      "rows": 63,
+      "result": "data/experiment_results/section_3_2_tracking/EXP03_straight_line"
+    },
+    {
+      "id": "EXP04_bulb_turn",
+      "group": "EXP-FTT",
+      "operation_type": "bulb_turn",
+      "input": "data/trajectory/EXP-FTT/EXP04_bulb_turn.csv",
+      "rows": 61,
+      "result": "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn"
+    },
+    {
+      "id": "EXP05_fishtail_turn",
+      "group": "EXP-FTT",
+      "operation_type": "fishtail_turn",
+      "input": "data/trajectory/EXP-FTT/EXP05_fishtail_turn.csv",
+      "rows": 85,
+      "result": "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn"
+    }
+  ],
+  "sha256": {
+    "data/experiment_results/section_3_2_config.json": "9f2d0a1201e8ce2d55dcb328fea3780b7f744482be443a7326d13c57ef83eabe",
+    "data/trajectory/TS-Tune/TS01_straight_line.csv": "9389650ecde07b0f97f2f43cdd9b8478263aa051ed3c945778ec81ec423e9c2d",
+    "data/trajectory/TS-Tune/TS02_straight_line.csv": "d37f5aac651d01ede3eca2831b071ebba3d60029e61ef1f1b31978a6cf75a49d",
+    "data/trajectory/TS-Tune/TS03_regular_operation.csv": "6cc26fe48a322a529f662fd0bc1c582d06d3bb895840de765097222f17fcfc5c",
+    "data/trajectory/TS-Tune/TS04_regular_operation.csv": "a63c709ec35991b8f196965d4da3d84ec999090ef30e9d98b773baf1fb89b8d7",
+    "data/trajectory/TS-Tune/TS05_complex_operation.csv": "b1e58bba186c2792e61a2ff5dbc64fe43aca46dc0ddef30448d51638d04581c2",
+    "data/trajectory/TS-Tune/TS06_complex_operation.csv": "756e659c9576f91717858bf96ed4e571bd16a829c2a9ed16b933b244a75ca54b",
+    "data/trajectory/TS-Tune/TS07_bulb_turn.csv": "41908ebdbec1fac797907767913cb11f6fb9c6f6feaf3a90ef8c704421c53789",
+    "data/trajectory/TS-Tune/TS08_bulb_turn.csv": "b888968b02f6e4fdd21a5a48c540f757cb8b0ea5f3ba158aff665d5ac6ae189d",
+    "data/trajectory/TS-Tune/TS09_fishtail_turn.csv": "fe41bb5e57221d287573ff1dc929dd44c94511425a904aed2f8d9f801a49f06f",
+    "data/trajectory/TS-Tune/TS10_fishtail_turn.csv": "43f803f726c721e1f4c0061e6906f7b78eb110ea4c2626eacaebf576a8276095",
+    "data/trajectory/EXP-FTT/EXP01_complex_operation.csv": "e85ee14843c2230386e225e16b500e0d4bdaaef2ff4c235ca955951181f39231",
+    "data/experiment_results/section_3_2_tracking/EXP01_complex_operation/tick_records.csv": "a738f77ae39a06e86cce819a11a2e2a089864d828ccf8c5781eaaff3a5095ab6",
+    "data/experiment_results/section_3_2_tracking/EXP01_complex_operation/diagnostic_events.csv": "81332c118ce29f4fe650bffc50ed7dc1b1b8b0120520838486c9cdaa2e4c17a3",
+    "data/experiment_results/section_3_2_tracking/EXP01_complex_operation/phase_summary.csv": "0d99fa545ad3a7d44badfa91a572c6cf51a1b7a241b2b2e20894039c27353b2e",
+    "data/experiment_results/section_3_2_tracking/EXP01_complex_operation/tracking_metrics_summary.csv": "7538cae255222557eb974a8232d43219b12a879b426cf431895800bc9457a5b6",
+    "data/experiment_results/section_3_2_tracking/EXP01_complex_operation/README_diagnostics.txt": "bc6358f98cb333511e8543a65fcea5027849dd96636a366f7ea57f615b24ba65",
+    "data/trajectory/EXP-FTT/EXP02_regular_operation.csv": "6a026a899da8b2906f70042e44ed8d7beec663770f70259370bc03d9d129ddb4",
+    "data/experiment_results/section_3_2_tracking/EXP02_regular_operation/tick_records.csv": "0c73bce74c0290ca6c80292a74cf036366c13cd3266d74b58aeefdd6f4bbb21b",
+    "data/experiment_results/section_3_2_tracking/EXP02_regular_operation/diagnostic_events.csv": "e80035c0bfc9c9858b553de077800275d7bab4c3ec4662adeb1becfe8c5f982c",
+    "data/experiment_results/section_3_2_tracking/EXP02_regular_operation/phase_summary.csv": "a28b2598d086df310a15ee73a0bc8ec582aa2856bcf62479fb8f40e1f15229c5",
+    "data/experiment_results/section_3_2_tracking/EXP02_regular_operation/tracking_metrics_summary.csv": "7d19a9f1c832a959e7f3b119b828a89d7933f699d452a2c2633f6177eb7039cd",
+    "data/experiment_results/section_3_2_tracking/EXP02_regular_operation/README_diagnostics.txt": "5bd42d37629d1964f24fc7bd1f77ca2f5c284b1921e2636352ee540aab5a6cdc",
+    "data/trajectory/EXP-FTT/EXP03_straight_line.csv": "87f2d3f814e1350a0b621cfdd2e27851de18be353be3786e9ca1a5d1ab187beb",
+    "data/experiment_results/section_3_2_tracking/EXP03_straight_line/tick_records.csv": "c25c9936c3b8ada5663f0a738a3486ed46bc55664e6cc4acb6548935387ae348",
+    "data/experiment_results/section_3_2_tracking/EXP03_straight_line/diagnostic_events.csv": "b42f2099187886def637d6aa840022266e05cb6c987a9394e708e23cd505eb46",
+    "data/experiment_results/section_3_2_tracking/EXP03_straight_line/phase_summary.csv": "cd9099e2cc771ba78a06827b0c03f5456d90a521cb1265171a0d84dc41f4769c",
+    "data/experiment_results/section_3_2_tracking/EXP03_straight_line/tracking_metrics_summary.csv": "c9da9c21d8781d2b1febc21358419ab2ad9bfc64e3160da73d0550c9215a958d",
+    "data/experiment_results/section_3_2_tracking/EXP03_straight_line/README_diagnostics.txt": "c1f423706ffb7a18bf00016d7db2b265d78cee514f42c286650578726d361997",
+    "data/trajectory/EXP-FTT/EXP04_bulb_turn.csv": "efd1ad6559523e069446edffa39448166a4213c33c35a0d754929b8d62415102",
+    "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn/tick_records.csv": "a99d07a1b5f52bb6fcad355904d45ca83052b2608fd65d808da839a72da5df8c",
+    "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn/diagnostic_events.csv": "131d0856dd4bce8c7ef95d5b8d76a7f1f4bed59f769e390885e48a109f78fab9",
+    "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn/phase_summary.csv": "9396bdd4462189626fba2a9561b8a8281fa6e989d29472b403970a80675d30c1",
+    "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn/tracking_metrics_summary.csv": "0336cd0a83ac61b37a144930b51f96c108a97da27d1095280cf3b075b7d5dd24",
+    "data/experiment_results/section_3_2_tracking/EXP04_bulb_turn/README_diagnostics.txt": "c1eb96a0850c7684ef52e07c57fbc5af83a774ab599336f421201590ee1754bd",
+    "data/trajectory/EXP-FTT/EXP05_fishtail_turn.csv": "69325dda854db2b8e616849ad9d0d966f9ff71a8a9674b1ba75105c620fa6165",
+    "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn/tick_records.csv": "245db8c72f15a146f464176384083bf9040e1e01f7ee436679362f7f5f04181d",
+    "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn/diagnostic_events.csv": "1a19aef2efc3abf9b659c01c44b6b3d227c2d748b7c28a95bc48b6a29f9b7d60",
+    "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn/phase_summary.csv": "c24cf987b6561402fe6fad71ef6346591fb0f7a0e7a2d4c4036cb10b8ad87988",
+    "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn/tracking_metrics_summary.csv": "9a386f43279bc7dce5b7c6917e2f127a8a3452d5b354b7040ce40cdc4a9f13cb",
+    "data/experiment_results/section_3_2_tracking/EXP05_fishtail_turn/README_diagnostics.txt": "0380343114a73d3d78812345b967a1e9686a55f8752e6becc9024807fb27a52c",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/planned_mission.json": "77bc2e73b498289a959215cd54adb8cc995964ed1f1c23f81f715c422464339b",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/vehicle_physics.json": "1679488bcbe333da7b9de6cf6df12f097de47a00c0101d5cfebd00fbab50e871",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/per_tick_states.csv": "06eea7132ef34fba17a8518db5bb337d6b9edabafa70b9788866977edef7875d",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/stage_events.json": "d06d20d2eecf126fb28548c67ebfd15509aa03b04aae98dd0ccb7cd4c801f796",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/collision_events.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/startup_diagnostics.json": "ef31d8a34fb829738550d6d095158a72d1cb167ca61fbc2c3194cebf7798400e",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/run_status.json": "caf6b5752a40ae6eb9b042777179d89cf352ec3bd4fc4b98d243a7afadb7a65e",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/full_process_path.csv": "a70fdeb0f168b7dd55a0101d4df88d985c674378a7fa1eedf3abd0b9f20bfa34",
+    "data/experiment_results/section_3_3/yantai_satellite/run_20261015T010039Z_f27a13ca/full_process_task_evaluation.csv": "014f45b24ab660b39e3549150a40505764a66cd6d90a8648be641b39b1e3ab59"
+  }
+}

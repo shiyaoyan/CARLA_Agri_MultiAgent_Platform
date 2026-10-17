@@ -26,20 +26,23 @@ def limit_road_speed(vehicle, control, target_speed_kmh: float = 13.5):
     """限制 BehaviorAgent 道路阶段输出，适配拖拉机低速行驶。"""
     v = vehicle.get_velocity()
     cur_speed = 3.6 * math.sqrt(v.x ** 2 + v.y ** 2)
+    if control.brake > 0 or control.hand_brake:
+        control.throttle = 0.0
+        return control
     if cur_speed > target_speed_kmh + 0.5:
         control.throttle = 0.0
         control.brake = max(control.brake, 0.18)
-    elif cur_speed < target_speed_kmh - 0.5:
-        control.throttle = min(max(control.throttle, 0.55), 0.75)
-        control.brake = 0.0
     else:
-        control.throttle = min(max(control.throttle, 0.18), 0.35)
-        control.brake = 0.0
+        control.throttle = min(control.throttle, 0.75)
     return control
 
 
 def set_agent_target_speed(navigation_controller, speed_kmh: float) -> None:
     """兼容不同 CARLA 版本设置 BehaviorAgent 目标速度。"""
+    # BehaviorAgent recomputes its speed from this profile in every run_step.
+    if hasattr(navigation_controller, "_behavior"):
+        navigation_controller._behavior.max_speed = speed_kmh
+        navigation_controller._behavior.speed_lim_dist = 0
     try:
         navigation_controller.set_target_speed(speed_kmh)
         return
@@ -79,12 +82,14 @@ def enforce_front_wheel_steering(vehicle) -> None:
     try:
         physics = vehicle.get_physics_control()
         if len(physics.wheels) >= 4:
-            front_left = physics.wheels[0].max_steer_angle
-            front_right = physics.wheels[1].max_steer_angle
-            physics.wheels[0].max_steer_angle = max(front_left, 35.0)
-            physics.wheels[1].max_steer_angle = max(front_right, 35.0)
-            physics.wheels[2].max_steer_angle = 0.0
-            physics.wheels[3].max_steer_angle = 0.0
+            wheels = list(physics.wheels)
+            front_left = wheels[0].max_steer_angle
+            front_right = wheels[1].max_steer_angle
+            wheels[0].max_steer_angle = max(front_left, 35.0)
+            wheels[1].max_steer_angle = max(front_right, 35.0)
+            wheels[2].max_steer_angle = 0.0
+            wheels[3].max_steer_angle = 0.0
+            physics.wheels = wheels
             vehicle.apply_physics_control(physics)
             print("Front-wheel steering enforced for the agricultural vehicle.")
     except Exception as exc:

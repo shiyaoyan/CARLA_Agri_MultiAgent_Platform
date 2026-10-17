@@ -43,6 +43,7 @@ class TrackingExperimentConfig:
     metric_skip_end_s: float = 5.0
     controller: ControllerInterfaceConfig | None = None
     controller_optimization: dict[str, Any] | None = None
+    vegetation_request: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any] | None) -> "TrackingExperimentConfig":
@@ -92,6 +93,10 @@ class TrackingExperimentRunner:
         self.client = self.carla.Client(self.config.host, self.config.port)
         self.client.set_timeout(self.config.timeout)
         self.world = self.client.load_world(self.config.carla_map) if self.config.carla_map else self.client.get_world()
+        if self.config.vegetation_request:
+            from agri_carla.environment.vegetation import restore_experiment_vegetation
+
+            restore_experiment_vegetation(self.config)
 
     def run(self, trajectory_csv: str | Path) -> dict[str, str]:
         """在同步仿真中跟踪一条参考轨迹并保存逐帧记录与评价结果。

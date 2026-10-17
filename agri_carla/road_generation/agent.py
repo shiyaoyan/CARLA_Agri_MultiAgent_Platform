@@ -33,6 +33,9 @@ class RoadSceneRequest:
     flat_terrain: bool = True
     description: str = ""
     topology_validation: dict[str, Any] | None = None
+    farmland_polygons: list[list[tuple[float, float]]] | None = None
+    junction_clearance_m: float | None = None
+    carla_0915_boundary_segment_m: float = 0.5
 
 
 @dataclass
@@ -52,6 +55,7 @@ class RoadSceneGenerationResult:
     topology_valid: bool = True
     regeneration_count: int = 0
     repair_action_count: int = 0
+    vegetation_request_path: str = ""
 
 
 class AgriculturalRoadGenerator:
@@ -100,6 +104,9 @@ class AgriculturalRoadGenerator:
             speed_kph=request.speed_kph,
             scene_profile=request.scene_profile,
             description=request.description,
+            farmland_polygons=request.farmland_polygons,
+            junction_clearance_m=request.junction_clearance_m,
+            carla_0915_boundary_segment_m=request.carla_0915_boundary_segment_m,
         )
         output_dir = Path(output_dir)
         validation_config = TopologyValidationConfig.from_dict(request.topology_validation)
@@ -185,6 +192,13 @@ class AgriculturalRoadGenerator:
             },
             "attempts": attempt_records,
         }
+        if result is not None and final_valid:
+            from .carla_diagnostics import editor_route_coverage
+            # Open boundaries are valid. Report the stock editor limitation
+            # separately, without inserting artificial roads or failing topology.
+            report["editor_route_coverage"] = editor_route_coverage(
+                Path(result.xodr_path).read_text(encoding="utf-8")
+            )
         report_path = write_json(
             output_dir / f"{current_spec.map_name}.topology_report.json",
             report,

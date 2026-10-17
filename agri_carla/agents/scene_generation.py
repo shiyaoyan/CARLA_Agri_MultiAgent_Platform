@@ -3,11 +3,29 @@
 from __future__ import annotations
 
 from pathlib import Path
+import copy
+import json
 from dataclasses import fields
 from typing import Any
 
 from agri_carla.environment import VegetationPlacementConfig, VegetationPlacer
 from agri_carla.road_generation.agent import AgriculturalRoadGenerator, RoadSceneGenerationResult, RoadSceneRequest
+from agri_carla.utils.io import write_json
+
+
+def vegetation_with_road_context(request, road_request=None):
+    """Use one coordinate frame for roads, field boundaries and tree belts."""
+    result = copy.deepcopy(request)
+    if road_request:
+        for key in ("image_width_px", "image_height_px", "meters_per_pixel", "north_up", "geo_anchor"):
+            value = road_request.get(key, True if key == "north_up" else None)
+            if value is not None:
+                if key in result and result[key] != value:
+                    raise ValueError(f"Road and vegetation coordinate metadata disagree: {key}")
+                result[key] = value
+        result.setdefault("carla_map", road_request.get("map_name", ""))
+        result["road_scene_request"] = copy.deepcopy(road_request)
+    return result
 
 
 class SceneGenerationAgent:
@@ -33,6 +51,7 @@ class SceneGenerationAgent:
         request: dict,
         output_dir: str | Path,
         context=None,
+        vegetation_request=None,
     ) -> RoadSceneGenerationResult:
         """过滤无关字段、构造道路请求并生成 CARLA 场景文件。"""
         if context is not None:
@@ -43,9 +62,35 @@ class SceneGenerationAgent:
             )
         # 只接受 RoadSceneRequest 明确定义的字段，避免模型输出的解释性文本被
         # 意外传入底层道路生成代码。
+        if "road_scene_request" in request:
+            vegetation_request = request.get("vegetation_request", vegetation_request)
+            request = request["road_scene_request"]
+        request = dict(request)
+        vegetation = None
+        if vegetation_request is not None:
+            vegetation = vegetation_with_road_context(vegetation_request, request)
+            config = VegetationPlacementConfig.from_dict(vegetation)
+            from agri_carla.environment.vegetation import _region_from_dict
+
+            if config.grass_regions:
+                request["farmland_polygons"] = [
+                    self.vegetation_placer._polygon_to_world(config, _region_from_dict(region, "grass"))
+                    for region in config.grass_regions
+                ]
         valid_keys = {field.name for field in fields(RoadSceneRequest)}
         structured = RoadSceneRequest(**{key: value for key, value in request.items() if key in valid_keys})
         result = self.generator.generate(structured, output_dir)
+        if vegetation is not None:
+            finalized = json.loads(Path(result.spec_path).read_text(encoding="utf-8"))
+            vegetation["road_scene_request"] = finalized
+            vegetation["road_xodr_path"] = str(Path(result.xodr_path).resolve())
+            vegetation.setdefault("output_dir", str(Path(output_dir) / "vegetation"))
+            # Default mesh surfaces are already present in this map's FBX.
+            vegetation["grass_regions"] = [r for r in vegetation.get("grass_regions", [])
+                                           if r.get("visual_mode", "mesh") != "mesh"]
+            result.vegetation_request_path = str(write_json(
+                Path(output_dir) / "vegetation_runtime_request.json", vegetation
+            ))
         if context is not None:
             context.progress(
                 "SGA",

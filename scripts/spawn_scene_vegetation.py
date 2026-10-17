@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from agri_carla.agents.scene_generation import SceneGenerationAgent
+from agri_carla.agents.scene_generation import SceneGenerationAgent, vegetation_with_road_context
 from agri_carla.environment.vegetation import dump_available_static_blueprints
 from agri_carla.utils.io import read_yaml
 
@@ -37,6 +37,12 @@ def main() -> None:
     if not isinstance(request, dict):
         raise ValueError("vegetation_request must be a JSON/YAML object.")
     request = dict(request)
+    if payload.get("road_scene_request"):
+        derived = Path(payload.get("road_scene_output_dir", "outputs/road_scene")) / "vegetation_runtime_request.json"
+        if derived.is_file():
+            request = json.loads(derived.read_text(encoding="utf-8"))
+        else:
+            request = vegetation_with_road_context(request, payload["road_scene_request"])
     if args.map:
         # 自定义地图在不同 CARLA 包中的注册路径可能不同，允许用户直接使用
         # get_available_maps 返回的完整名称，而无须修改结构化任务文件。

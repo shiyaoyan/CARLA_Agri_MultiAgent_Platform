@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+import re
 import unittest
 from pathlib import Path
 from xml.etree import ElementTree as ET
@@ -297,7 +298,11 @@ class RoadTopologyValidatorTests(unittest.TestCase):
         self.assertIn('Type: "LayerElementNormal"', fbx_text)
         self.assertIn('a: 0,0,1,0,0,1', fbx_text)
         self.assertIn('-0.005', fbx_text)
-        self.assertIn(',0.001', fbx_text)
+        # Junctions now share z=0 with roads; the former raised disc is gone.
+        arrays = re.findall(r"Vertices: \*\d+\s*\{\s*a: ([^}]+)", fbx_text)
+        for values in arrays[1:]:
+            coordinates = [float(value) for value in values.strip().split(",")]
+            self.assertTrue(all(z == 0.0 for z in coordinates[2::3]))
 
     def test_unrepairable_topology_is_rejected_before_artifact_generation(self):
         """未声明交叉口无法安全修复时，应只写报告而不生成误导性的地图文件。"""
@@ -481,7 +486,7 @@ class RoadTopologyValidatorTests(unittest.TestCase):
             if road.get("junction") != "-1"
             for width in road.findall("./lanes/laneSection/*/lane/width")
         ]
-        self.assertTrue(any(abs(float(width.get("b", "0"))) > 1e-9 for width in connector_widths))
+        self.assertTrue(any(abs(float(width.get("c", "0"))) > 1e-9 for width in connector_widths))
         self.assertTrue(check.valid, [issue.to_dict() for issue in check.issues])
 
     def test_three_way_junction_has_six_directed_movements_and_two_way_arms(self):

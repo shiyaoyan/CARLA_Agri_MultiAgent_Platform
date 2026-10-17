@@ -15,8 +15,23 @@ from agri_carla.simulation.tracking_experiment import TrackingExperimentConfig
 def main() -> None:
     """构造跟踪实验配置，并按开关选择固定参数或贝叶斯优化模式。"""
     parser = argparse.ArgumentParser(description="Run trajectory tracking validation in CARLA.")
-    parser.add_argument("--trajectory", required=True, help="Standard trajectory CSV.")
+    parser.add_argument("--trajectory", default="", help="Standard trajectory CSV for fixed-parameter tracking.")
     parser.add_argument("--processed-csv", default="", help="Optional path for standardized CSV generated before running.")
+    parser.add_argument(
+        "--parameter-optimization-set-dir",
+        default="",
+        help="Directory containing at least two CSV trajectories used by Bayesian optimization.",
+    )
+    parser.add_argument(
+        "--independent-validation-set-dir",
+        default="",
+        help="Disjoint directory containing at least two CSV trajectories used only after parameter locking.",
+    )
+    parser.add_argument(
+        "--processed-dataset-dir",
+        default="",
+        help="Optional destination for standardized copies of both trajectory sets.",
+    )
     parser.add_argument("--vehicle-bp", default="vehicle.tractor.tractor")
     parser.add_argument("--carla-map", default="", help="Optional existing CARLA map name. If omitted, the current world is used.")
     parser.add_argument("--output-dir", default="results/trajectory_tracking")
@@ -35,6 +50,20 @@ def main() -> None:
         help="Number of controller candidates, including the baseline.",
     )
     args = parser.parse_args()
+    if args.auto_optimize_controller:
+        if not args.parameter_optimization_set_dir:
+            parser.error(
+                "--parameter-optimization-set-dir is required with "
+                "--auto-optimize-controller"
+            )
+        if not args.independent_validation_set_dir:
+            parser.error(
+                "--independent-validation-set-dir is required with "
+                "--auto-optimize-controller"
+            )
+    elif not args.trajectory:
+        parser.error("--trajectory is required for fixed-parameter tracking")
+
     config = TrackingExperimentConfig(
         carla_map=args.carla_map,
         vehicle_bp=args.vehicle_bp,
@@ -51,9 +80,16 @@ def main() -> None:
         },
     )
     result = ExperimentExecutionAgent().run_trajectory_tracking(
-        args.trajectory,
+        trajectory_csv=args.trajectory or None,
         processed_csv=args.processed_csv or None,
         config=config,
+        parameter_optimization_set_dir=(
+            args.parameter_optimization_set_dir or None
+        ),
+        independent_validation_set_dir=(
+            args.independent_validation_set_dir or None
+        ),
+        processed_dataset_dir=args.processed_dataset_dir or None,
     )
     print(result)
 

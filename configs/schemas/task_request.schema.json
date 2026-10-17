@@ -26,7 +26,10 @@
         "density_per_100m2": {"type": "number", "minimum": 0},
         "grid_spacing_m": {"type": "number", "exclusiveMinimum": 0},
         "min_spacing_m": {"type": "number", "minimum": 0},
-        "visual_mode": {"type": "string"}
+        "visual_mode": {"type": "string", "enum": ["mesh", "blueprint", "debug_area"]},
+        "z": {"type": "number"},
+        "scale": {"type": "number", "exclusiveMinimum": 0},
+        "yaw_deg": {"type": ["number", "null"]}
       }
     }
   },
@@ -167,6 +170,26 @@
         "north_up": {"type": "boolean"},
         "geo_anchor": {"type": "object"},
         "dry_run": {"type": "boolean"},
+        "load_map": {"type": "boolean", "default": false},
+        "strict_spawn": {"type": "boolean", "default": true},
+        "world_offset": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "items": {"type": "number"}
+        },
+        "road_xodr_path": {"type": "string"},
+        "road_clearance_m": {"type": "number", "minimum": 0, "default": 1},
+        "roadside_trees": {
+          "type": "object",
+          "description": "Sample roadside belts outside finalized road footprints; tree assets must already exist in CARLA.",
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "band_width_m": {"type": "number", "exclusiveMinimum": 0},
+            "density_per_100m2": {"type": "number", "minimum": 0},
+            "grid_spacing_m": {"type": "number", "exclusiveMinimum": 0},
+            "min_spacing_m": {"type": "number", "minimum": 0},
+            "blueprint_filter": {"type": "string"}
+          }
+        },
         "output_dir": {"type": "string"},
         "tree_regions": {
           "type": "array",
@@ -175,7 +198,7 @@
         },
         "grass_regions": {
           "type": "array",
-          "description": "Requested non-colliding farmland/grass areas inferred from image and text or revised by closed correction polygons.",
+          "description": "Farmland boundaries used to generate textured mesh surfaces. debug_area explicitly requests diagnostic lines/points only. Mesh collision is determined by CARLA import settings.",
           "items": {"$ref": "#/$defs/vegetationRegion"}
         }
       }
@@ -194,7 +217,7 @@
         "trajectory_csv": {"type": "string"},
         "processed_csv": {"type": "string"},
         "parameter_optimization_set_dir": {"type": "string"},
-        "independent_test_set_dir": {"type": "string"},
+        "independent_validation_set_dir": {"type": "string"},
         "processed_dataset_dir": {"type": "string"},
         "config": {
           "type": "object",

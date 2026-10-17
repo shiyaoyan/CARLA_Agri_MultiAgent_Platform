@@ -1,7 +1,8 @@
-"""CIA 内部的控制器贝叶斯优化、综合目标计算和独立测试流程。"""
+"""CIA 内部的控制器贝叶斯优化、跟踪目标计算和独立验证流程。"""
 
 from __future__ import annotations
 
+import hashlib
 import math
 from datetime import datetime
 from dataclasses import asdict, dataclass, field, replace
@@ -29,22 +30,21 @@ DEFAULT_SEARCH_SPACE = {
     "pid.kd": (0.0, 0.2),
 }
 
+MIN_TRAJECTORIES_PER_DATASET = 2
+
 
 @dataclass(frozen=True)
 class TrackingObjectiveConfig:
-    """综合目标中各误差指标的权重、尺度和无效实验惩罚。"""
+    """横向与速度跟踪目标的权重、尺度和无效实验惩罚。"""
     metric_scope: str = "valid"
-    # Metric weights
     lateral_mae_weight: float = 0.25
     lateral_rmse_weight: float = 0.35
     lateral_p95_weight: float = 0.20
-    speed_rmse_weight: float = 0.15
-    heading_rmse_weight: float = 0.05
+    speed_rmse_weight: float = 0.20
 
     # Scale factors
     lateral_scale_m: float = 1.0
     speed_scale_kmh: float = 5.0
-    heading_scale_deg: float = 30.0
     minimum_valid_ratio: float = 0.5
 
     # Penalties
@@ -209,7 +209,7 @@ class GaussianProcessBayesianOptimizer:
         return candidate, metadata
 
     def tell(self, score: float) -> None:
-        """把刚完成实验的综合目标反馈给优化器并更新历史最优值。"""
+        """把刚完成实验的跟踪目标反馈给优化器并更新历史最优值。"""
         if self.pending is None:
             raise RuntimeError("ask() must be called before tell().")
 
@@ -451,6 +451,52 @@ def _normal_cdf(value: np.ndarray) -> np.ndarray:
     return np.where(value >= 0.0, 1.0 - upper_tail, upper_tail)
 
 
+def _validate_dataset_partition(
+    optimization_csvs: Sequence[Path],
+    validation_csvs: Sequence[Path],
+) -> None:
+    """强制两个多轨迹集合完整、各自唯一且相互隔离。"""
+    datasets = {
+        "parameter optimization set": list(optimization_csvs),
+        "independent validation set": list(validation_csvs),
+    }
+    fingerprints: dict[str, set[str]] = {}
+    for dataset_name, paths in datasets.items():
+        if len(paths) < MIN_TRAJECTORIES_PER_DATASET:
+            raise ValueError(
+                f"The {dataset_name} must contain at least "
+                f"{MIN_TRAJECTORIES_PER_DATASET} trajectory CSV files; "
+                f"received {len(paths)}."
+            )
+        resolved = [path.resolve() for path in paths]
+        if len(set(resolved)) != len(resolved):
+            raise ValueError(f"The {dataset_name} contains a repeated file path.")
+        missing = [str(path) for path in paths if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(
+                f"The {dataset_name} contains missing trajectory files: "
+                + ", ".join(missing)
+            )
+        dataset_fingerprints = {
+            hashlib.sha256(path.read_bytes()).hexdigest() for path in paths
+        }
+        if len(dataset_fingerprints) != len(paths):
+            raise ValueError(
+                f"The {dataset_name} contains duplicate trajectory content."
+            )
+        fingerprints[dataset_name] = dataset_fingerprints
+
+    overlap = (
+        fingerprints["parameter optimization set"]
+        & fingerprints["independent validation set"]
+    )
+    if overlap:
+        raise ValueError(
+            "The parameter optimization set and independent validation set "
+            "must not contain the same trajectory content."
+        )
+
+
 class ControllerSelfOptimizationSession:
     """CIA 内部负责反复运行实验、评价并更新控制参数的优化会话。"""
 
@@ -460,23 +506,20 @@ class ControllerSelfOptimizationSession:
 
     def run(
         self,
-        parameter_optimization_csvs: Sequence[str | Path],
-        independent_test_csvs: Sequence[str | Path],
+        optimization_csvs: Sequence[str | Path],
+        validation_csvs: Sequence[str | Path],
         experiment_config,
         run_trial: Callable[[Any, str | Path], dict[str, Any]],
         progress_callback=None,
     ) -> dict[str, Any]:
-        """在优化集选择参数，按需确认最优值，再运行独立测试集。
+        """在优化集选择参数，锁定最优值后再运行独立验证集。
 
         地图、拖拉机、轨迹和实验初始条件由调用方固定，每轮只替换搜索空间中的
-        控制器参数。独立测试结果在最优参数锁定后产生，不反馈给优化器。
+        控制器参数。独立验证结果在最优参数锁定后产生，不反馈给优化器。
         """
-        optimization_csvs = [Path(path) for path in parameter_optimization_csvs]
-        test_csvs = [Path(path) for path in independent_test_csvs]
-        if not optimization_csvs:
-            raise ValueError(
-                "At least one parameter-optimization trajectory CSV is required."
-            )
+        optimization_csvs = [Path(path) for path in optimization_csvs]
+        validation_csvs = [Path(path) for path in validation_csvs]
+        _validate_dataset_partition(optimization_csvs, validation_csvs)
         output_dir = ensure_dir(
             Path(experiment_config.output_dir)
             / "controller_optimization"
@@ -609,7 +652,7 @@ class ControllerSelfOptimizationSession:
                 f"See {summary_path}."
             )
 
-        # “最优参数”指所有成功候选中综合目标值最小的一组，而非某个单项误差最小。
+        # “最优参数”指横向与速度指标加权目标最小的一组，而非某个单项误差最小。
         best_row = min(successful, key=lambda row: float(row["objective"]))
         best_trial_index = int(best_row["trial"])
         best_parameters = {
@@ -655,24 +698,22 @@ class ControllerSelfOptimizationSession:
                 output_dir=Path(confirmation_config.output_dir),
             )
 
-        independent_test = {}
-        if test_csvs:
-            if progress_callback is not None:
-                progress_callback(
-                    {
-                        "phase": "independent_test_started",
-                        "trajectory_count": len(test_csvs),
-                        "message": "Starting independent controller evaluation.",
-                    }
-                )
-            independent_test = self._run_independent_test(
-                trajectory_csvs=test_csvs,
-                experiment_config=experiment_config,
-                baseline_controller=initial_controller,
-                optimized_controller=best_controller,
-                run_trial=run_trial,
-                output_dir=output_dir / "independent_test",
+        if progress_callback is not None:
+            progress_callback(
+                {
+                    "phase": "independent_validation_started",
+                    "trajectory_count": len(validation_csvs),
+                    "message": "Starting independent validation after parameter locking.",
+                }
             )
+        independent_validation = self._run_independent_validation(
+            trajectory_csvs=validation_csvs,
+            experiment_config=experiment_config,
+            baseline_controller=initial_controller,
+            optimized_controller=best_controller,
+            run_trial=run_trial,
+            output_dir=output_dir / "independent_validation",
+        )
 
         baseline_objective = float(trial_rows[0]["objective"])
         best_objective = float(best_row["objective"])
@@ -687,10 +728,10 @@ class ControllerSelfOptimizationSession:
             "surrogate_model": "gaussian_process_matern52",
             "acquisition_function": "expected_improvement",
             "optimizer_configuration": asdict(self.config),
-            "parameter_optimization_trajectories": [
-                str(path) for path in optimization_csvs
+            "optimization_trajectories": [str(path) for path in optimization_csvs],
+            "independent_validation_trajectories": [
+                str(path) for path in validation_csvs
             ],
-            "independent_test_trajectories": [str(path) for path in test_csvs],
             "trial_count": len(trial_rows),
             "best_trial": best_trial_index,
             "baseline_objective": baseline_objective,
@@ -704,12 +745,12 @@ class ControllerSelfOptimizationSession:
             "best_trial_metrics": {
                 key: value
                 for key, value in best_row.items()
-                if key.startswith(("lateral_", "speed_", "heading_", "valid_"))
+                if key.startswith(("lateral_", "speed_", "valid_"))
             },
             "confirmation_evaluation": confirmation_evaluation,
             "best_trial_result": trial_results[best_trial_index],
             "confirmation_result": confirmation_result,
-            "independent_test": independent_test,
+            "independent_validation": independent_validation,
         }
         summary_path = write_json(
             output_dir / "controller_optimization_summary.json",
@@ -729,7 +770,7 @@ class ControllerSelfOptimizationSession:
             "best_parameters": best_parameters,
             "best_trial_result": trial_results[best_trial_index],
             "confirmation_result": confirmation_result,
-            "independent_test": independent_test,
+            "independent_validation": independent_validation,
         }
 
     def _run_dataset(
@@ -785,7 +826,7 @@ class ControllerSelfOptimizationSession:
         )
         return results, _aggregate_evaluations(evaluations), rows
 
-    def _run_independent_test(
+    def _run_independent_validation(
         self,
         *,
         trajectory_csvs: Sequence[Path],
@@ -795,7 +836,7 @@ class ControllerSelfOptimizationSession:
         run_trial: Callable[[Any, str | Path], dict[str, Any]],
         output_dir: Path,
     ) -> dict[str, Any]:
-        """在未参与调参的轨迹上分别运行默认和优化控制器并生成对比表。"""
+        """在未参与调参的轨迹上分别运行默认和优化控制器并生成验证表。"""
         baseline_results, baseline_evaluation, baseline_rows = self._run_dataset(
             trajectory_csvs=trajectory_csvs,
             experiment_config=experiment_config,
@@ -811,7 +852,7 @@ class ControllerSelfOptimizationSession:
             output_dir=output_dir / "optimized",
         )
 
-        metrics_path, comparison_path = _write_independent_test_tables(
+        metrics_path, comparison_path = _write_validation_tables(
             output_dir,
             baseline_rows,
             optimized_rows,
@@ -828,7 +869,7 @@ class ControllerSelfOptimizationSession:
                 else "failed"
             ),
             "selection_isolation": (
-                "Independent-test results were produced only after the best "
+                "Independent-validation results were produced only after the best "
                 "controller parameters were locked and were not supplied to "
                 "the Bayesian optimizer."
             ),
@@ -842,7 +883,7 @@ class ControllerSelfOptimizationSession:
             "optimized_results": optimized_results,
         }
         summary_path = write_json(
-            output_dir / "independent_test_summary.json",
+            output_dir / "independent_validation_summary.json",
             summary,
         )
         return {
@@ -859,10 +900,11 @@ def evaluate_tracking_result(
     result: dict[str, Any],
     config: TrackingObjectiveConfig,
 ) -> dict[str, Any]:
-    """从 PES 输出中计算单次轨迹实验的综合目标值。
+    """从 PES 输出中计算单次轨迹实验的跟踪目标值。
 
-    各指标先按量纲尺度归一化再加权；有效数据比例不足和最大横向误差超限会
-    追加惩罚，因此低目标值表示整体跟踪表现更好且评价数据有效。
+    横向 MAE、RMSE、P95 和速度 RMSE 先按各自量纲尺度归一化再加权。航向指标
+    仅由 PES 保留作诊断，不参与参数选择。有效数据比例不足和最大横向误差超限
+    会追加惩罚，因此低目标值表示跟踪表现更好且评价数据有效。
     """
     metrics_path = result.get("tracking_metrics_summary")
     tick_path = result.get("tick_records")
@@ -885,7 +927,6 @@ def evaluate_tracking_result(
         "lateral_rmse_m": f"{prefix}_lateral_rmse_m",
         "lateral_p95_m": f"{prefix}_lateral_p95_abs_m",
         "lateral_max_m": f"{prefix}_lateral_max_abs_m",
-        "heading_rmse_deg": f"{prefix}_heading_rmse_deg",
     }
     values: dict[str, float] = {}
     for output_name, column in required.items():
@@ -919,9 +960,6 @@ def evaluate_tracking_result(
         + config.speed_rmse_weight
         * values["speed_rmse_kmh"]
         / max(config.speed_scale_kmh, 1e-9)
-        + config.heading_rmse_weight
-        * values["heading_rmse_deg"]
-        / max(config.heading_scale_deg, 1e-9)
     )
     if valid_ratio < config.minimum_valid_ratio:
         score += (
@@ -1062,7 +1100,6 @@ def _aggregate_evaluations(
         "lateral_p95_m",
         "lateral_max_m",
         "speed_rmse_kmh",
-        "heading_rmse_deg",
         "valid_ratio",
     )
     aggregate: dict[str, Any] = {
@@ -1092,15 +1129,15 @@ def _aggregate_evaluations(
     return aggregate
 
 
-def _write_independent_test_tables(
+def _write_validation_tables(
     output_dir: Path,
     baseline_rows: Sequence[dict[str, Any]],
     optimized_rows: Sequence[dict[str, Any]],
 ) -> tuple[Path, Path]:
-    """写出独立测试长表以及默认/优化参数逐轨迹对比表。"""
+    """写出独立验证长表以及默认/优化参数逐轨迹对比表。"""
     ensure_dir(output_dir)
-    metrics_path = output_dir / "independent_test_metrics.csv"
-    comparison_path = output_dir / "independent_test_comparison.csv"
+    metrics_path = output_dir / "independent_validation_metrics.csv"
+    comparison_path = output_dir / "independent_validation_comparison.csv"
 
     long_rows = [
         {"parameter_setting": "baseline", **row} for row in baseline_rows
@@ -1123,7 +1160,6 @@ def _write_independent_test_tables(
         "lateral_p95_m",
         "lateral_max_m",
         "speed_rmse_kmh",
-        "heading_rmse_deg",
     )
     comparison_rows: list[dict[str, Any]] = []
     for baseline in baseline_rows:
@@ -1180,7 +1216,6 @@ def _failed_evaluation(penalty: float, error: str) -> dict[str, Any]:
         "lateral_p95_m": float("nan"),
         "lateral_max_m": float("nan"),
         "speed_rmse_kmh": float("nan"),
-        "heading_rmse_deg": float("nan"),
         "valid_ratio": 0.0,
     }
 
@@ -1196,7 +1231,7 @@ def _plot_convergence(
     output_dir: Path,
     rows: list[dict[str, Any]],
 ) -> Path | None:
-    """绘制各轮综合目标和历史最优目标的收敛曲线。"""
+    """绘制各轮跟踪目标和历史最优目标的收敛曲线。"""
     if not rows:
         return None
     try:
@@ -1212,7 +1247,7 @@ def _plot_convergence(
     ax.plot(trials, objectives, "o-", color="#7c8da6", label="Trial objective")
     ax.plot(trials, best_so_far, "-", color="#c43c39", linewidth=2.0, label="Best so far")
     ax.set_xlabel("Trial")
-    ax.set_ylabel("Composite tracking objective")
+    ax.set_ylabel("Tracking objective")
     ax.grid(True, linestyle="--", alpha=0.35)
     ax.legend()
     fig.tight_layout()

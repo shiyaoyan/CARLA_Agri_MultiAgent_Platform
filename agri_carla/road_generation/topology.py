@@ -226,6 +226,30 @@ class RoadTopologyValidator:
 
         junction_nodes = root.findall("junction")
         junction_ids = {junction.get("id", "") for junction in junction_nodes}
+        duplicate_junction_ids = _duplicates(j.get("id", "") for j in junction_nodes)
+        if duplicate_junction_ids:
+            issues.append(_error(
+                "XODR_DUPLICATE_JUNCTION_ID",
+                "OpenDRIVE junction identifiers must be unique.",
+                junction_ids=duplicate_junction_ids,
+            ))
+        # CARLA 0.9.15 resolves a linked integer ID as a road first, even if
+        # elementType says junction. This is a CARLA compatibility constraint.
+        try:
+            road_numbers = {int(value) for value in road_ids}
+            junction_numbers = {int(value) for value in junction_ids}
+            collisions = sorted(road_numbers & junction_numbers)
+            if collisions:
+                issues.append(_error(
+                    "XODR_CARLA_ROAD_JUNCTION_ID_COLLISION",
+                    "CARLA 0.9.15 treats a junction link as a road when their IDs overlap.",
+                    colliding_ids=collisions,
+                ))
+        except ValueError:
+            issues.append(_error(
+                "XODR_CARLA_NON_NUMERIC_ID",
+                "CARLA 0.9.15 requires numeric road and junction identifiers.",
+            ))
         graph_edges: list[tuple[str, str]] = []
         lane_ids = {
             road.get("id", ""): {
@@ -311,6 +335,8 @@ class RoadTopologyValidator:
                         element_type=element_type,
                     ))
 
+        issues.extend(_validate_direct_road_links(road_map, road_geometry, self.config))
+
         for junction in junction_nodes:
             junction_id = junction.get("id", "")
             connections = junction.findall("connection")
@@ -384,6 +410,36 @@ class RoadTopologyValidator:
                         junction_id,
                     )
                     contact_point = connection.get("contactPoint", "")
+                    if from_lane in lane_ids.get(incoming, set()) and to_lane in lane_ids.get(connecting, set()):
+                        valid_incoming = (
+                            (incoming_side == "start" and int(from_lane) > 0)
+                            or (incoming_side == "end" and int(from_lane) < 0)
+                        )
+                        valid_connector = (
+                            (contact_point == "start" and int(to_lane) < 0)
+                            or (contact_point == "end" and int(to_lane) > 0)
+                        )
+                        if not valid_incoming or not valid_connector:
+                            issues.append(_error(
+                                "XODR_LANE_LINK_TRAVEL_DIRECTION",
+                                "Junction contact points must match the driving-lane travel direction.",
+                                incoming_road=incoming, from_lane=from_lane,
+                                connecting_road=connecting, to_lane=to_lane,
+                            ))
+                        relation = "predecessor" if contact_point == "start" else "successor"
+                        entry_road_link = road_map[connecting].find(f"./link/{relation}")
+                        entry_lane = next((lane for lane in road_map[connecting].findall(
+                            "./lanes/laneSection/*/lane") if lane.get("id") == to_lane), None)
+                        entry_lane_link = entry_lane.find(f"./link/{relation}") if entry_lane is not None else None
+                        if (entry_road_link is None or entry_lane_link is None
+                                or entry_road_link.get("elementId") != incoming
+                                or entry_road_link.get("contactPoint") != incoming_side
+                                or entry_lane_link.get("id") != from_lane):
+                            issues.append(_error(
+                                "XODR_CONNECTOR_ENTRY_LINK_MISMATCH",
+                                "Connector road/lane links disagree with the junction entry.",
+                                incoming_road=incoming, connecting_road=connecting,
+                            ))
                     if (
                         incoming_side in {"start", "end"}
                         and contact_point in {"start", "end"}
@@ -436,10 +492,7 @@ class RoadTopologyValidator:
                             contact_point,
                         )
                         if incoming_heading is not None and connecting_heading is not None:
-                            heading_gap = _undirected_heading_gap(
-                                connecting_heading,
-                                incoming_heading,
-                            )
+                            heading_gap = abs(_wrap_angle(connecting_heading - incoming_heading))
                             if heading_gap > self.config.heading_tolerance_rad:
                                 issues.append(_error(
                                     "XODR_LANE_LINK_HEADING_GAP",
@@ -460,6 +513,13 @@ class RoadTopologyValidator:
                     )
                     if movement is not None:
                         outgoing_road_id, outgoing_lane_id, connector_exit_side, outgoing_side = movement
+                        if not ((outgoing_side == "start" and outgoing_lane_id < 0)
+                                or (outgoing_side == "end" and outgoing_lane_id > 0)):
+                            issues.append(_error(
+                                "XODR_CONNECTOR_EXIT_TRAVEL_DIRECTION",
+                                "A junction connector enters an outgoing lane against its travel direction.",
+                                connecting_road=connecting, outgoing_road=outgoing_road_id,
+                            ))
                         actual_movements.add((incoming, outgoing_road_id))
                         if (
                             outgoing_road_id in road_geometry
@@ -512,10 +572,7 @@ class RoadTopologyValidator:
                                 outgoing_side,
                             )
                             if connector_exit_heading is not None and outgoing_heading is not None:
-                                exit_heading_gap = _undirected_heading_gap(
-                                    connector_exit_heading,
-                                    outgoing_heading,
-                                )
+                                exit_heading_gap = abs(_wrap_angle(connector_exit_heading - outgoing_heading))
                                 if exit_heading_gap > self.config.heading_tolerance_rad:
                                     issues.append(_error(
                                         "XODR_LANE_LINK_EXIT_HEADING_GAP",
@@ -525,6 +582,13 @@ class RoadTopologyValidator:
                                         outgoing_road=outgoing_road_id,
                                         heading_gap_rad=exit_heading_gap,
                                     ))
+
+                    else:
+                        issues.append(_error(
+                            "XODR_CONNECTOR_MISSING_EXIT_LINK",
+                            "A junction connector must link to an existing outgoing road and lane.",
+                            connecting_road=connecting,
+                        ))
 
                 connecting_geometry = road_geometry.get(connecting, {})
                 contact_point = connection.get("contactPoint", "")
@@ -763,6 +827,67 @@ class RoadTopologyValidator:
             })
 
         return current_spec, actions
+
+
+def _validate_direct_road_links(roads, geometries, config):
+    """Check both lane directions across ordinary road splits, outside junctions."""
+    issues = []
+    for road_id, road in roads.items():
+        if road.get("junction", "-1") != "-1":
+            continue
+        for relation, side in (("predecessor", "start"), ("successor", "end")):
+            link = road.find(f"./link/{relation}")
+            if link is None or link.get("elementType") != "road":
+                continue
+            target_id = link.get("elementId")
+            target = roads.get(target_id)
+            if target is None or target.get("junction", "-1") != "-1":
+                continue
+            target_side = link.get("contactPoint")
+            if target_side not in {"start", "end"}:
+                issues.append(_error("XODR_DIRECT_ROAD_CONTACT", "A direct road link needs a valid contactPoint.", road_id=road_id))
+                continue
+            opposite_relation = "predecessor" if target_side == "start" else "successor"
+            back = target.find(f"./link/{opposite_relation}")
+            if (back is None or back.get("elementType") != "road"
+                    or back.get("elementId") != road_id or back.get("contactPoint") != side):
+                issues.append(_error("XODR_DIRECT_ROAD_RECIPROCAL_LINK", "Direct road links must be reciprocal.", road_id=road_id, target_road=target_id))
+            sections = road.findall("./lanes/laneSection")
+            section = sections[0 if side == "start" else -1] if sections else None
+            if section is None:
+                continue
+            target_sections = target.findall("./lanes/laneSection")
+            target_section = target_sections[0 if target_side == "start" else -1] if target_sections else None
+            for lane in section.findall("./*/lane"):
+                if lane.get("type") != "driving":
+                    continue
+                lane_id = int(lane.get("id"))
+                lane_link = lane.find(f"./link/{relation}")
+                if lane_link is None:
+                    issues.append(_error("XODR_DIRECT_LANE_LINK_MISSING", "Direct road splits need explicit lane links in both directions.", road_id=road_id, lane_id=lane_id))
+                    continue
+                target_lane_id = int(lane_link.get("id"))
+                target_lane = next((item for item in target_section.findall("./*/lane")
+                                    if int(item.get("id")) == target_lane_id), None) if target_section is not None else None
+                if target_lane is None or target_lane.get("type") != "driving":
+                    issues.append(_error("XODR_DIRECT_LANE_TARGET", "Direct lane link must reach an existing driving lane.", road_id=road_id, lane_id=lane_id))
+                    continue
+                back_lane = target_lane.find(f"./link/{opposite_relation}")
+                if back_lane is None or int(back_lane.get("id")) != lane_id:
+                    issues.append(_error("XODR_DIRECT_LANE_RECIPROCAL_LINK", "Direct lane links must be reciprocal.", road_id=road_id, lane_id=lane_id))
+                source_exits = (lane_id < 0 and side == "end") or (lane_id > 0 and side == "start")
+                target_exits = (target_lane_id < 0 and target_side == "end") or (target_lane_id > 0 and target_side == "start")
+                if source_exits == target_exits:
+                    issues.append(_error("XODR_DIRECT_LANE_DIRECTION", "A direct lane link must connect an exit and an entry.", road_id=road_id, lane_id=lane_id))
+                a = _lane_center_at_contact(road, lane_id, side, geometries[road_id])
+                b = _lane_center_at_contact(target, target_lane_id, target_side, geometries[target_id])
+                if a is not None and b is not None and math.dist(a, b) > config.lane_center_tolerance_m:
+                    issues.append(_error("XODR_DIRECT_LANE_CENTER_GAP", "Directly linked lane centers do not meet.", road_id=road_id, target_road=target_id, gap_m=math.dist(a, b)))
+                ah = _lane_travel_heading_at_contact(geometries[road_id], lane_id, side)
+                bh = _lane_travel_heading_at_contact(geometries[target_id], target_lane_id, target_side)
+                if ah is not None and bh is not None and abs(_wrap_angle(ah - bh)) > config.heading_tolerance_rad:
+                    issues.append(_error("XODR_DIRECT_LANE_HEADING_GAP", "Directly linked lane travel headings do not match.", road_id=road_id, target_road=target_id))
+    return issues
 
 
 def _xodr_geometry_summary(

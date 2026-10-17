@@ -24,7 +24,7 @@ class AgriPhysicsConfig:
         self.tire_friction = 3.5
         self.damping_rate = 1.0
         self.max_steer_angle = 48.0
-        self.long_stiff_value = 8000.0
+        self.long_stiff_value = 5000.0
         self.lat_stiff_max_load = 4.0
         self.lat_stiff_value = 20.0
         self.max_brake_torque = 1400.0
@@ -35,9 +35,11 @@ class AgriPhysicsConfig:
         self.damping_rate_zero_throttle_clutch_engaged = 2.0
 
         self.torque_curve = [
-            (700, 200),
+            (0, 300),
+            (700, 300),
             (1400, 500),
-            (1500, 500),
+            (2100, 500),
+            (2700, 500),
         ]
         self.torque_multiplier = 1.0
 
@@ -45,8 +47,8 @@ class AgriPhysicsConfig:
         self.final_ratio = 5.28
         self.forward_gears = [
             (15.2, 0.2, 0.6),
-            (19.8, 0.2, 0.5),
-            (29.35, 0.2, 0.4),
+            #(19.8, 0.2, 0.5),
+            #(29.35, 0.2, 0.4),
         ]
         self.gear_ratio_multiplier = 1.0
 

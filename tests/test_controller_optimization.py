@@ -104,8 +104,8 @@ class ControllerOptimizationTests(unittest.TestCase):
         self.assertIsNotNone(baseline_score)
         self.assertLess(optimizer.best_score, float(baseline_score) * 0.05)
 
-    def test_tracking_objective_uses_lateral_speed_and_heading_metrics(self):
-        """综合目标应成功读取横向、速度和航向三类误差。"""
+    def test_tracking_objective_excludes_heading_but_keeps_speed(self):
+        """七参数目标使用横向与速度误差，但不依赖不可靠的航向字段。"""
         with tempfile.TemporaryDirectory() as temp_dir:
             result = _write_fake_result(Path(temp_dir), quality=0.4)
             evaluation = evaluate_tracking_result(
@@ -113,13 +113,26 @@ class ControllerOptimizationTests(unittest.TestCase):
                 TrackingObjectiveConfig(),
             )
         self.assertEqual(evaluation["status"], "completed")
-        self.assertGreater(evaluation["objective"], 0.0)
+        self.assertAlmostEqual(evaluation["objective"], 0.332)
         self.assertAlmostEqual(evaluation["lateral_rmse_m"], 0.4)
         self.assertAlmostEqual(evaluation["speed_rmse_kmh"], 0.4)
+        self.assertNotIn("heading_rmse_deg", evaluation)
 
     def test_cia_runs_trials_and_writes_best_controller_configuration(self):
-        """CIA 应完成多轨迹多轮优化、独立测试并保存全部结果文件。"""
+        """CIA 应完成多轨迹多轮优化、独立验证并保存全部结果文件。"""
         with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir = Path(temp_dir) / "data"
+            data_dir.mkdir()
+            optimization_csvs = [
+                data_dir / "optimization_a.csv",
+                data_dir / "optimization_b.csv",
+            ]
+            validation_csvs = [
+                data_dir / "validation_a.csv",
+                data_dir / "validation_b.csv",
+            ]
+            for index, path in enumerate(optimization_csvs + validation_csvs):
+                path.write_text(f"trajectory,{index}\n", encoding="utf-8")
             experiment_config = TrackingExperimentConfig(
                 output_dir=temp_dir,
                 controller_optimization={"enabled": True},
@@ -151,11 +164,8 @@ class ControllerOptimizationTests(unittest.TestCase):
             progress_events = []
             result = ControllerInterfaceAgent.run_self_optimization(
                 config=optimization,
-                parameter_optimization_csvs=[
-                    "optimization_a.csv",
-                    "optimization_b.csv",
-                ],
-                independent_test_csvs=["independent_test.csv"],
+                optimization_csvs=optimization_csvs,
+                validation_csvs=validation_csvs,
                 experiment_config=experiment_config,
                 run_trial=fake_trial,
                 progress_callback=progress_events.append,
@@ -171,10 +181,15 @@ class ControllerOptimizationTests(unittest.TestCase):
             history = pd.read_csv(result["trial_history"])
             self.assertEqual(len(history), 6)
             self.assertIn("bayesian_acquisition", history["candidate_type"].tolist())
-            self.assertEqual(len(trial_calls), 16)
-            self.assertEqual(result["independent_test"]["trajectory_count"], 1)
+            self.assertEqual(len(trial_calls), 18)
+            self.assertEqual(
+                result["independent_validation"]["trajectory_count"],
+                2,
+            )
             self.assertTrue(
-                Path(result["independent_test"]["comparison_table"]).exists()
+                Path(
+                    result["independent_validation"]["comparison_table"]
+                ).exists()
             )
             completed_trials = [
                 event
@@ -195,22 +210,23 @@ class ControllerOptimizationTests(unittest.TestCase):
 
             csvs = ExperimentExecutionAgent()._prepare_dataset(
                 directory=dataset_dir,
-                fallback_csv=None,
                 processed_dataset_dir=None,
                 subset_name="parameter_optimization_set",
+                minimum_csvs=2,
             )
 
         self.assertEqual([path.name for path in csvs], ["a.csv", "b.csv"])
 
-    def test_eea_rejects_an_empty_required_optimization_set(self):
-        """启用优化时，空参数优化集应被明确拒绝。"""
+    def test_eea_rejects_a_dataset_with_fewer_than_two_trajectories(self):
+        """参数优化集或验证集少于两条轨迹时应被明确拒绝。"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaisesRegex(ValueError, "contains no CSV files"):
+            (Path(temp_dir) / "only.csv").touch()
+            with self.assertRaisesRegex(ValueError, "at least 2"):
                 ExperimentExecutionAgent()._prepare_dataset(
                     directory=temp_dir,
-                    fallback_csv=None,
                     processed_dataset_dir=None,
                     subset_name="parameter_optimization_set",
+                    minimum_csvs=2,
                 )
 
     def test_disabled_switch_runs_a_single_tracking_experiment(self):
@@ -243,51 +259,73 @@ class ControllerOptimizationTests(unittest.TestCase):
     def test_enabled_switch_uses_cia_self_optimization_entrypoint(self):
         """优化开关开启后应进入现有 CIA 的自优化方法。"""
         expected = {"optimization_enabled": True}
-        with patch.object(
-            ControllerInterfaceAgent,
-            "run_self_optimization",
-            return_value=expected,
-        ) as optimize:
-            result = ExperimentExecutionAgent().run_trajectory_tracking(
-                trajectory_csv="synthetic.csv",
-                config=TrackingExperimentConfig(
-                    controller_optimization={
-                        "enabled": True,
-                        "max_trials": 2,
-                    },
-                ),
-            )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            optimization_dir = Path(temp_dir) / "optimization"
+            validation_dir = Path(temp_dir) / "validation"
+            optimization_dir.mkdir()
+            validation_dir.mkdir()
+            for directory, prefix in (
+                (optimization_dir, "optimization"),
+                (validation_dir, "validation"),
+            ):
+                (directory / "a.csv").write_text(
+                    f"{prefix},a\n",
+                    encoding="utf-8",
+                )
+                (directory / "b.csv").write_text(
+                    f"{prefix},b\n",
+                    encoding="utf-8",
+                )
+            with patch.object(
+                ControllerInterfaceAgent,
+                "run_self_optimization",
+                return_value=expected,
+            ) as optimize:
+                result = ExperimentExecutionAgent().run_trajectory_tracking(
+                    config=TrackingExperimentConfig(
+                        controller_optimization={
+                            "enabled": True,
+                            "max_trials": 2,
+                        },
+                    ),
+                    parameter_optimization_set_dir=optimization_dir,
+                    independent_validation_set_dir=validation_dir,
+                )
 
         self.assertEqual(result, expected)
         optimize.assert_called_once()
+        self.assertEqual(len(optimize.call_args.kwargs["optimization_csvs"]), 2)
+        self.assertEqual(len(optimize.call_args.kwargs["validation_csvs"]), 2)
 
-    def test_single_trajectory_optimization_uses_processed_csv(self):
-        """单轨迹调用应先标准化，并使用处理后的 CSV 参与优化。"""
-        expected = {"optimization_enabled": True}
-        eea = ExperimentExecutionAgent()
-        with patch.object(
-            eea,
-            "preprocess_trajectory",
-            return_value=Path("processed.csv"),
-        ) as preprocess, patch.object(
-            ControllerInterfaceAgent,
-            "run_self_optimization",
-            return_value=expected,
-        ) as optimize:
-            result = eea.run_trajectory_tracking(
-                trajectory_csv="raw.csv",
-                processed_csv="processed.csv",
+    def test_optimization_rejects_single_trajectory_fallback(self):
+        """开启优化后不得再用单条 trajectory_csv 替代两个正式数据集。"""
+        with self.assertRaisesRegex(ValueError, "parameter_optimization_set_dir"):
+            ExperimentExecutionAgent().run_trajectory_tracking(
+                trajectory_csv="single.csv",
                 config=TrackingExperimentConfig(
                     controller_optimization={"enabled": True, "max_trials": 2},
                 ),
             )
 
-        self.assertEqual(result, expected)
-        preprocess.assert_called_once_with("raw.csv", "processed.csv")
-        self.assertEqual(
-            optimize.call_args.kwargs["parameter_optimization_csvs"],
-            [Path("processed.csv")],
-        )
+    def test_cia_rejects_trajectory_content_shared_between_sets(self):
+        """同一轨迹改名后也不能同时进入参数优化集和独立验证集。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir = Path(temp_dir)
+            optimization_csvs = [data_dir / "o1.csv", data_dir / "o2.csv"]
+            validation_csvs = [data_dir / "v1.csv", data_dir / "v2.csv"]
+            optimization_csvs[0].write_text("same\n", encoding="utf-8")
+            optimization_csvs[1].write_text("optimization\n", encoding="utf-8")
+            validation_csvs[0].write_text("same\n", encoding="utf-8")
+            validation_csvs[1].write_text("validation\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "must not contain the same"):
+                ControllerInterfaceAgent.run_self_optimization(
+                    config=ControllerSelfOptimizationConfig(enabled=True),
+                    optimization_csvs=optimization_csvs,
+                    validation_csvs=validation_csvs,
+                    experiment_config=TrackingExperimentConfig(output_dir=temp_dir),
+                    run_trial=lambda *_: {},
+                )
 
 
 def _write_fake_result(output_dir: Path, quality: float) -> dict[str, str]:
@@ -301,7 +339,6 @@ def _write_fake_result(output_dir: Path, quality: float) -> dict[str, str]:
         "valid_lateral_rmse_m": quality,
         "valid_lateral_p95_abs_m": quality * 1.2,
         "valid_lateral_max_abs_m": quality * 1.5,
-        "valid_heading_rmse_deg": quality * 10.0,
     }]).to_csv(metrics_path, index=False)
     pd.DataFrame([
         {

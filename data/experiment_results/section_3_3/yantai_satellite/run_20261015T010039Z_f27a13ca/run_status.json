@@ -1,0 +1,48 @@
+{
+  "status": "COMPLETED",
+  "task_completed": true,
+  "stage_transition_completed": true,
+  "failure_reason": "",
+  "expected_stages": [
+    "GARAGE_EXIT",
+    "ROAD_NAV",
+    "OFFROAD_APPROACH",
+    "HARVEST_LINE",
+    "TURN_BULB",
+    "HARVEST_LINE",
+    "FIELD_EXIT",
+    "ROAD_RETURN",
+    "GARAGE_RETURN"
+  ],
+  "observed_stages": [
+    "GARAGE_EXIT",
+    "ROAD_NAV",
+    "OFFROAD_APPROACH",
+    "HARVEST_LINE",
+    "TURN_BULB",
+    "HARVEST_LINE",
+    "FIELD_EXIT",
+    "ROAD_RETURN",
+    "GARAGE_RETURN"
+  ],
+  "map_name": "YantaiSatelliteRebuilt",
+  "collision_count": 0,
+  "fatal_collision_count": 0,
+  "startup_contact_count": 0,
+  "collision_events": [],
+  "startup_diagnostics": "results/full_process_navigation/yantai_satellite/run_20261015T010039Z_f27a13ca/startup_diagnostics.json",
+  "collision_policy": "static map contacts are non-fatal until 1.0 m of stage progress; all other contacts are always fatal",
+  "total_ticks": 9165,
+  "duration_s": 458.25,
+  "forward_reverse_operation": "NOT_APPLICABLE_FORWARD_ONLY",
+  "control_geometry": {
+    "wheelbase_m": 3.150693467177706,
+    "front_max_steer_deg": 48.0,
+    "kinematic_min_radius_m": 2.8368971401895897,
+    "designed_radius_m": 5.5
+  },
+  "custom_physics_applied": true,
+  "physics_readback_matches": true,
+  "distance_metric": "Unchanged PathTracker; work_distance counts HARVEST_LINE only",
+  "initialization_ticks_excluded": 20
+}

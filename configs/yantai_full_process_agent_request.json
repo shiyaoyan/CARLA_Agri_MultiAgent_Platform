@@ -1,35 +1,174 @@
 {
   "task_type": "full_process_navigation",
-  "natural_language_request": "I want to test a full-process agricultural navigation task on the already imported CARLA map YantaiTrackingField. Use the tractor blueprint vehicle.tractor.tractor. The tractor should start from the parking area, enter the farm road, drive to the field entrance, perform boustrophedon field operation with a 3 m working width and bulb turns at the headland, then leave the field, return along the farm road and stop at the parking area. Please record task completion, stage transition, collision events, total travel distance, operation path length and total task duration, and output the travelled path plot and evaluation table.",
+  "natural_language_request": "Run the Section 3.3 experiment on YantaiSatelliteRebuilt: leave the garage, drive east on the dirt farm road, enter the field, follow two straight 3 m harvest swaths joined by one forward-only bulb turn, leave the field, return west on the opposite farm-road lane, and park in the garage. Preserve complete raw tick logs and failure records.",
   "map_task_registry": "configs/map_task_registry/yantai_full_process.json",
   "machinery": {
     "type": "tractor",
     "model_file": "vehicle.tractor.tractor",
-    "output_file": "outputs/yantai_full_process/templates/default_tractor_physics.json"
+    "output_file": "outputs/yantai_satellite/templates/df1204_physics.json"
   },
   "experiment": {
     "config": {
-      "carla_map": "YantaiTrackingField",
+      "host": "localhost",
+      "port": 2000,
+      "timeout": 30,
+      "carla_map": "YantaiSatelliteRebuilt",
+      "reload_world": false,
       "vehicle_bp": "vehicle.tractor.tractor",
       "vehicle_type": "tractor",
-      "output_dir": "results/full_process_navigation/yantai_agent_case",
+      "output_dir": "results/full_process_navigation/yantai_satellite",
       "fixed_delta_seconds": 0.05,
-      "road_speed_kmh": 13.5,
-      "field_line_speed_kmh": 7.5,
-      "max_steps": 60000,
+      "road_speed_kmh": 6,
+      "field_line_speed_kmh": 4,
+      "maneuver_speed_kmh": 3,
+      "turn_speed_kmh": 2.5,
+      "max_steps": 24000,
       "apply_front_wheel_steering": true,
-      "apply_agri_physics": false,
-      "harvest_width_m": 3.0,
-      "garage_spawn": [74.0, -8.0, 2.0, 90.0],
-      "road_entry": [74.0, -8.0, 2.0],
-      "field_top_left": [150.0, -80.0, 0.5],
-      "field_top_right": [150.0, -40.0, 0.5],
-      "field_bottom_right": [50.0, -40.0, 0.5],
-      "field_bottom_left": [50.0, -80.0, 0.5],
-      "field_entry": [50.0, -80.0, 0.5],
-      "field_exit": [50.0, -80.0, 0.5],
-      "field_exit_road": [50.0, -98.0, 0.5]
+      "apply_agri_physics": true,
+      "physics_overrides": {
+        "mass": 5760,
+        "center_of_mass": -0.2,
+        "drag_coefficient": 1,
+        "tire_friction": 3.5,
+        "damping_rate": 1,
+        "max_steer_angle": 48,
+        "long_stiff_value": 5000,
+        "lat_stiff_max_load": 4,
+        "lat_stiff_value": 20,
+        "max_brake_torque": 1400,
+        "max_rpm": 2400,
+        "moi": 1,
+        "damping_rate_full_throttle": 0.15,
+        "damping_rate_zero_throttle_clutch_engaged": 2,
+        "torque_curve": [
+          [
+            0,
+            300
+          ],
+          [
+            700,
+            300
+          ],
+          [
+            1400,
+            500
+          ],
+          [
+            2100,
+            500
+          ],
+          [
+            2700,
+            500
+          ]
+        ],
+        "torque_multiplier": 1,
+        "gear_switch_time": 0.3,
+        "final_ratio": 5.28,
+        "forward_gears": [
+          [
+            15.2,
+            0.2,
+            0.6
+          ]
+        ],
+        "gear_ratio_multiplier": 1
+      },
+      "harvest_width_m": 3,
+      "harvest_passes": 2,
+      "min_turn_radius_m": 5.5,
+      "path_spacing_m": 0.25,
+      "wheelbase_m": 2.5,
+      "max_steer_angle_deg": 35,
+      "lookahead_m": 1.5,
+      "gate_tolerance_m": 0.8,
+      "heading_tolerance_deg": 15,
+      "stop_speed_ms": 0.12,
+      "parking_hold_s": 1,
+      "max_cross_track_m": 4,
+      "stall_timeout_s": 30,
+      "road_projection_limit_m": 2,
+      "stop_on_collision": true,
+      "collision_arm_distance_m": 1,
+      "spawn_height_offset_m": 0,
+      "use_gear_autobox": true,
+      "throttle_ramp_per_frame": 0.15,
+      "garage_spawn": [
+        -3,
+        24,
+        0.05,
+        -90
+      ],
+      "garage_return": [
+        -3,
+        24,
+        0.05
+      ],
+      "garage_return_yaw": 90,
+      "road_entry": [
+        5,
+        1,
+        0.05
+      ],
+      "field_entry_road": [
+        14,
+        0.6,
+        0.05
+      ],
+      "field_exit_road": [
+        11,
+        -1.7,
+        0.05
+      ],
+      "road_return": [
+        2,
+        -1.3,
+        0.05
+      ],
+      "road_outbound_yaw": -2.5,
+      "road_inbound_yaw": 177.5,
+      "road_gate_road_id": 1,
+      "field_top_left": [
+        18.508623289614963,
+        -16.839390200420073,
+        0.05
+      ],
+      "field_top_right": [
+        11.508623289614963,
+        -81.83939020042007,
+        0.05
+      ],
+      "field_bottom_right": [
+        17.474130131155114,
+        -82.48182939873978,
+        0.05
+      ],
+      "field_bottom_left": [
+        24.474130131155114,
+        -17.48182939873978,
+        0.05
+      ],
+      "field_maneuver_boundary": [
+        [
+          -5,
+          -106
+        ],
+        [
+          20,
+          -109
+        ],
+        [
+          32,
+          -8
+        ],
+        [
+          7,
+          -6
+        ]
+      ],
+      "vehicle_clearance_m": 2.5,
+      "vegetation_request": null
     }
   },
-  "flow_report": "results/full_process_navigation/yantai_agent_case/crewai_flow_report.json"
+  "flow_report": "results/full_process_navigation/yantai_satellite/crewai_flow_report.json"
 }

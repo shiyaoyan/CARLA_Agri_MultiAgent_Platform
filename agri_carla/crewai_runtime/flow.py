@@ -54,6 +54,7 @@ class AgriculturalSimulationFlow(Flow[AgriculturalFlowState]):
             self.state.task_id = str(self.state.id)
         task_id = self.state.task_id
         if self.state.structured_request and self.state.execution_plan:
+            self._validate_paper_case_request(self.state.structured_request)
             self._store.add_event(
                 task_id,
                 "FLOW_PLANNING_RESTORED",
@@ -96,6 +97,7 @@ class AgriculturalSimulationFlow(Flow[AgriculturalFlowState]):
                     raise RuntimeError(
                         "PGA did not return an execution_plan object."
                     )
+                self._validate_paper_case_request(planning["structured_request"])
                 context.succeed(run_id, planning)
                 self.state.structured_request = dict(planning["structured_request"])
                 self.state.execution_plan = dict(planning["execution_plan"])
@@ -421,6 +423,11 @@ class AgriculturalSimulationFlow(Flow[AgriculturalFlowState]):
             exc,
             (ConnectionError, TimeoutError, DependencyUnavailableError, FileNotFoundError),
         ) or cls._is_retryable(exc)
+
+    def _validate_paper_case_request(self, request):
+        from agri_carla.paper_cases import PaperCaseCatalog
+        case = self.state.original_request.get("paper_case", {})
+        PaperCaseCatalog.validate_case_request(case.get("id"), request)
 
     @staticmethod
     def _register_output_artifacts(context, step, output) -> None:

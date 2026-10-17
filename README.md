@@ -2,17 +2,42 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[中文说明](README_CN.md)
+A multi-agent simulation platform that adapts CARLA for the autonomous navigation of
+agricultural machinery. A large language model parses natural-language navigation
+specifications into structured task descriptions; a large vision model and satellite
+imagery generate farmland and road scenes; recorded tractor trajectories drive the
+machinery physical configuration and the control interface. Two application cases are
+shipped as evidence: **in-field trajectory tracking** across five agricultural operation
+types, and **multi-stage agricultural navigation** covering departure, road driving,
+field entry, field operation and return.
 
-This project is a CrewAI-managed agricultural autonomous-navigation platform
-based on CARLA. It supports agricultural road-scene generation, tractor
-configuration, real-trajectory tracking, controller optimization and
-full-process agricultural navigation.
+This repository accompanies the paper *Agent-Generated CARLA-based Simulation Platform
+for Autonomous Agricultural Machinery Navigation*.
+
+## Features
+
+- **Natural-language task specification.** Raw text, satellite images, trajectory data
+  and JSON/YAML requests are parsed into a validated structured request and a
+  dependency-aware execution plan.
+- **Satellite-to-CARLA scene generation.** OpenDRIVE, FBX and texture artifacts with road
+  topology validation and vegetation placement.
+- **Trajectory-driven machinery configuration.** Tractor physics derived from technical
+  specifications, historical trajectories and CARLA reference ranges, then refined by
+  simulation.
+- **Direction-aware control interface.** Pure-pursuit lateral control plus PID
+  longitudinal control, with gear-state handling for forward/reverse switching and
+  optional Bayesian parameter optimization.
+- **Two closed-loop experiments.** In-field trajectory tracking with MAE/RMSE/MaxAE
+  evaluation, and full-process navigation with stage-transition, distance and duration
+  evaluation.
+- **Self-contained runners.** Two single-file scripts reproduce either experiment
+  without CrewAI, an LLM key or a project installation. Both need the CARLA Python API,
+  numpy, pandas and matplotlib; the Section 3.3 runner additionally needs shapely and the
+  CARLA official navigation agents.
 
 ## Architecture
 
-The project has one top-level workflow:
-`AgriculturalSimulationFlow`, implemented as a persisted CrewAI `Flow`.
+One top-level workflow, `AgriculturalSimulationFlow`, runs as a persisted CrewAI `Flow`.
 
 ```text
 Natural language, images, data, or JSON/YAML
@@ -27,226 +52,205 @@ Natural language, images, data, or JSON/YAML
                          TPS and PES
 ```
 
-- **PGA** parses multimodal input, validates a structured request and produces
-  a dependency-aware execution plan.
-- **SGA** generates CARLA-ready OpenDRIVE, FBX and texture artifacts, validates
-  road topology and prepares vegetation placement.
-- **MCA** selects an existing machinery blueprint and exports supported tractor
-  parameters.
-- **CIA** prepares pure-pursuit, PID and gear-state controls and optionally runs
-  Bayesian controller-parameter optimization.
-- **EEA** executes trajectory tracking or full-process navigation in CARLA.
-- **TPS** and **PES** are EEA subagents for trajectory processing and
-  evaluation. CIA remains a peer agent and is also used by EEA at run time.
+| Agent | Name | Responsibility |
+|---|---|---|
+| PGA | Plan Generation Agent | Parses multimodal input, validates the structured request, produces the execution plan |
+| SGA | Scene Generation Agent | Generates CARLA-ready OpenDRIVE/FBX/textures, validates road topology, places vegetation |
+| MCA | Machinery Configuration Agent | Selects the machinery blueprint and exports supported tractor parameters |
+| CIA | Controller Interface Agent | Prepares pure-pursuit, PID and gear-state control; optional Bayesian tuning |
+| EEA | Experiment Execution Agent | Executes trajectory tracking or full-process navigation in CARLA |
+| TPS | Trajectory Preprocessing Sub-Agent | Converts raw recorded trajectories into the reference path format |
+| PES | Performance Evaluation Subagent | Computes tracking, transition and task metrics from recorded states |
 
-Agent and task definitions are stored in
-`agri_carla/crewai_runtime/config/agents.yaml` and `tasks.yaml`. Every planned
-step creates a Crew with exactly one selected agent and one allow-listed domain
-tool. CrewAI therefore participates in execution while deterministic project
-code remains responsible for simulation and file generation.
+Agent and task definitions live in `agri_carla/crewai_runtime/config/agents.yaml` and
+`tasks.yaml`. Every planned step creates a Crew with exactly one selected agent and one
+allow-listed domain tool, so CrewAI participates in execution while deterministic project
+code remains responsible for simulation and file generation. See
+[docs/agent_architecture.md](docs/agent_architecture.md) for the full mapping.
 
-## Single-computer dual-environment installation
+## Repository layout
 
-The supported deployment uses two isolated Python environments on the same
-Linux CARLA computer. CrewAI runs in Python 3.10-3.13, while the installed
-CARLA 0.9.15 Python 3.8 egg remains in a dedicated Python 3.8 environment:
+```text
+agri_carla/
+  crewai_runtime/   # Flow, Crew runner, tools and YAML definitions
+  agents/           # PGA, SGA, MCA and EEA
+  controllers/      # CIA, pure-pursuit, PID, gear state, Bayesian optimization
+  trajectory/       # TPS and trajectory utilities
+  evaluation/       # PES, metrics and path tracking
+  simulation/       # CARLA experiment runners and configurations
+  machinery/        # tractor physics and templates
+  road_generation/  # road topology and CARLA import diagnostics
+  execution/        # allow-listed domain dispatcher, no orchestration
+  worker/           # same-host CARLA worker protocol and server
+roadrunner_mcp/     # SGA OpenDRIVE/FBX/TGA backend
+configs/            # paper-case manifest, prompts, request examples and schemas
+data/
+  trajectory/       # 15-trajectory dataset (TS-Tune, EXP-FTT) and its manifest
+  experiment_results/  # published Section 3.2 and 3.3 outputs and the evidence manifest
+  maps/             # rebuilt Yantai satellite OpenDRIVE map
+docs/               # architecture, installation, reproduction and runner guides
+scripts/            # CLI entry points
+tests/              # unit, architecture and reconciliation tests
+standalone_trajectory_tracking.py    # single-file Section 3.2 runner
+standalone_yantai_full_process.py    # single-file Section 3.3 runner
+```
+
+## Requirements
+
+- CARLA 0.9.15 server (Linux recommended) and its Python API matching the Python version
+  of the execution environment
+- Python 3.10-3.13 for the CrewAI management environment, Python 3.8 for the CARLA worker
+- `numpy`, `pandas`, `matplotlib`, `pyyaml`, `crewai`, and an OpenAI-compatible LLM
+  endpoint for the agent workflow
+- An LLM API key for any prompt-first case; the offline verification and the standalone
+  runners do not need one
+
+## Installation
+
+The supported deployment uses two isolated Python environments on one CARLA computer,
+communicating only over `127.0.0.1`:
 
 ```bash
 CREWAI_PYTHON=python3.10 bash scripts/setup_crewai_manager.sh
-CARLA_PYTHON=python3.8 bash scripts/setup_carla_worker_linux.sh
+CARLA_PYTHON=python3.8  bash scripts/setup_carla_worker_linux.sh
 
-cp .env.example .env
-# Edit .env and insert the LLM API key locally.
-
-bash scripts/run_same_host_crewai_carla.sh \
-  configs/yantai_tracking_experiment_request.json
+cp .env.example .env    # insert the LLM API key locally; never commit .env
 ```
 
-Both processes remain on the same CARLA computer and communicate only over
-`127.0.0.1`. Non-loopback Worker addresses are rejected. The Python 3.8 Worker
-contains no planning or top-level orchestration logic; the persisted CrewAI
-Flow in the management environment remains the only workflow owner.
-See [`docs/single_computer_deployment_CN.md`](docs/single_computer_deployment_CN.md)
-for the complete setup and troubleshooting procedure. The mapping from official
-CrewAI abstractions to project code is documented in
-[`docs/crewai_compliance_CN.md`](docs/crewai_compliance_CN.md).
+The complete procedure, the CARLA scene import step and a troubleshooting section are in
+[docs/installation.md](docs/installation.md).
 
-## Manager Planning and Local Tools
+## Quick start
 
-Without a CARLA worker, the manager can parse and plan tasks and run local
-SGA/MCA utilities. This command validates and plans the request without
-starting a vehicle experiment:
+### 1. Verify the published results offline (no CARLA, no LLM)
 
 ```bash
-python scripts/run_crewai.py \
-  --request configs/yantai_tracking_experiment_request.json \
-  --plan-only
+python -m pip install -r requirements.txt
+python scripts/audit_paper_results.py
 ```
 
-Run from natural language and input files:
+This replays the Section 3.2 controller over the recorded vehicle states, recomputes every
+metric table from the raw per-tick logs, reconciles the Section 3.3 run and verifies all
+evidence hashes. It reports `"audit_passed": true` on the shipped data.
+
+### 2. Run the prompt-first paper cases
 
 ```bash
-python scripts/run_crewai.py \
-  --text "Track the supplied real-tractor trajectory and evaluate tracking performance." \
-  --data data/trajectory/yantai_quanlujing.csv \
-  --request-template configs/existing_scene_tracking_request.yaml \
-  --llm-config configs/llm/gpt_5_6_sol.json \
-  --plan-only
+python scripts/run_paper_case.py --list
+python scripts/run_paper_case.py --case section_3_2_tracking
+bash scripts/run_same_host_crewai_carla.sh --paper-case section_3_2_tracking --execute
 ```
 
-Tracking and full-process navigation require a running CARLA server and the
-same-host launcher from the installation section. `--plan-only` does not call
-the CARLA Worker.
-
-## Status and Resume
-
-```bash
-python scripts/run_crewai.py --status TASK_ID
-python scripts/run_crewai.py --resume TASK_ID
-```
-
-Runtime records are stored in:
-
-```text
-runtime/crewai_runtime.sqlite3
-runtime/runs/<task_id>/
-```
-
-The Flow records agent status, progress, errors, artifacts and successful-step
-checkpoints. A resumed task skips completed steps.
-
-## Main Commands
-
-```bash
-# Road scene
-python scripts/generate_road_scene.py \
-  --request configs/road_scene_request.yaml \
-  --output-dir outputs/road_scene
-
-# Trajectory standardization
-python scripts/process_trajectory.py \
-  --input data/trajectory/yantai_quanlujing.csv \
-  --output outputs/trajectories/yantai_quanlujing_standard.csv
-
-# Tractor template
-python scripts/generate_machinery_template.py \
-  --type tractor \
-  --output outputs/templates/tractor_df1204.json
-
-# Direct CARLA tracking runner (requires the CARLA Python environment and a running simulator)
-python scripts/run_tracking_experiment.py \
-  --trajectory data/trajectory/yantai_quanlujing.csv \
-  --output-dir results/trajectory_tracking
-
-# CrewAI single-trajectory Bayesian-optimization case
-bash scripts/run_same_host_crewai_carla.sh \
-  configs/yantai_tracking_optimization_request.json
-
-# CrewAI full-process navigation case
-bash scripts/run_same_host_crewai_carla.sh \
-  configs/yantai_full_process_agent_request.json
-```
-
-The optional multi-trajectory optimization and independent-test case uses
-`configs/yantai_tracking_dataset_optimization_request.json`. Its two dataset
-directories contain documentation only in this public example; add CSV files
-before running it. Independent-test metrics are not returned to the Bayesian
-optimizer, and an empty optimization set is rejected explicitly.
-
-## Experiment Implementation Map
-
-CrewAI is the only top-level entry, so there is no separate script that bypasses
-PGA to launch full-process navigation. The experiment code remains in the
-following modules:
-
-| Function | Entry | Implementation |
+| Case id | Paper function | Expected route |
 |---|---|---|
-| CrewAI Flow | `scripts/run_crewai.py` | `agri_carla/crewai_runtime/flow.py` |
-| Tracking experiment | EEA from the Flow | `agri_carla/simulation/tracking_experiment.py` |
-| Bayesian optimization | CIA during tracking | `agri_carla/controllers/controller_optimization.py` |
-| Full-process navigation | EEA from the Flow | `agri_carla/simulation/full_process_experiment.py` |
-| Scene generation | SGA from the Flow | `agri_carla/road_generation/agent.py`, `roadrunner_mcp/realmap.py` |
+| `scene_generation` | Satellite-image scene construction | PGA -> SGA |
+| `machinery_configuration` | DF1204 parameter-template generation | PGA -> MCA |
+| `section_3_2_tracking` | Real-tractor trajectory tracking | PGA -> MCA -> CIA -> EEA |
+| `section_3_2_bayesian_optimization` | Controller tuning and independent validation | PGA -> CIA -> EEA |
+| `section_3_3_full_process` | Multi-stage agricultural navigation | PGA -> MCA -> CIA -> EEA |
 
-## Raw-Image Scene Review Workflow
-
-The first scene-planning request uses an original, unannotated satellite image
-plus a natural-language description of the relevant roads, farmland and tree
-belts. PGA asks the multimodal model to produce candidate geometry, performs a
-second visual verification and deterministic geometry checks, and writes an
-overlay preview. SGA is not allowed to execute until the candidate is confirmed.
-Before running the example, replace the template's map scale and geographic
-anchor with values for the supplied image; image dimensions are read from the
-actual attachment.
-
-Third-party satellite imagery is not bundled with the repository. Supply an
-owned or redistributable image using `--image /path/to/satellite_image.png`.
-The reusable prompt and request template are provided under `configs/prompts/`
-and `configs/raw_scene_generation_template.example.json`.
+### 3. Re-execute an experiment directly in CARLA
 
 ```bash
-# 1. First pass: raw image + spatial description -> JSON candidate + overlay preview
-python scripts/run_crewai.py \
-  --text-file configs/prompts/raw_scene_generation_prompt.example.txt \
-  --image /path/to/original_satellite_image.png \
-  --request-template configs/raw_scene_generation_template.example.json \
-  --llm-config configs/llm/gpt_5_6_sol.json \
-  --plan-only
+# Section 3.2, with the frozen published configuration
+python scripts/reproduce_tracking.py --all --prepare-only   # validate inputs, no CARLA
+python scripts/reproduce_tracking.py --all
 
-# 2a. Candidate accepted: execute the saved request
-python scripts/run_crewai.py \
-  --request runtime/runs/<task_id>/structured_request.json \
-  --confirm-scene
-
-# 2b. Candidate rejected: rerun planning with clearer text and, only if useful,
-# an optional marked correction image while retaining the original under --image
-python scripts/run_crewai.py \
-  --text "Keep the original image. Move the eastern road centerline slightly west and limit the northern farmland to the two rectangular plots." \
-  --image /path/to/original_satellite_image.png \
-  --correction-image /path/to/optional_scene_correction.png \
-  --request-template configs/raw_scene_generation_template.example.json \
-  --llm-config configs/llm/gpt_5_6_sol.json \
-  --plan-only
+# Section 3.3, map and gate validation first, then the full mission
+python scripts/run_full_process_experiment.py \
+  --config configs/yantai_full_process_agent_request.json --plan-only
+python scripts/run_full_process_experiment.py \
+  --config configs/yantai_full_process_agent_request.json
 ```
 
-Correction images are optional and belong only to the second review round. A
-closed semi-transparent polygon corrects a farmland/grass region; an elongated
-polygon or band corrects a tree belt. A single point is never interpreted as an
-exact tree coordinate. SGA uses only the confirmed structured geometry and
-then performs deterministic geometry and topology validation.
-
-## Repository Layout
-
-```text
-agri_carla/crewai_runtime/  # Flow, Crew runner, tools and YAML definitions
-agri_carla/execution/       # allow-listed domain dispatcher, no orchestration
-agri_carla/worker/          # same-host CARLA worker protocol and server
-agri_carla/agents/          # PGA, SGA, MCA and EEA implementations
-agri_carla/controllers/     # CIA, controllers and Bayesian optimization
-agri_carla/trajectory/      # TPS and trajectory utilities
-agri_carla/evaluation/      # PES and metrics
-agri_carla/simulation/      # CARLA experiment runners
-roadrunner_mcp/             # SGA OpenDRIVE/FBX/TGA backend
-configs/                    # example requests and schemas
-data/experiment_results/    # published Section 3.1 tracking outputs
-scripts/                    # CLI entry points
-tests/                      # unit and architecture tests
-```
-
-The five published Section 3.1 runs, including per-tick records, metric
-summaries and diagnostic figures, are documented in
-[`data/experiment_results/section_3_1/`](data/experiment_results/section_3_1/README.md).
-
-## Verification
+### 4. Or use a standalone runner
 
 ```bash
-python scripts/audit_release.py
-python -m compileall -q agri_carla scripts tests
+python standalone_trajectory_tracking.py     # Section 3.2, edit TRAJECTORY_CSV first
+python standalone_yantai_full_process.py     # Section 3.3
+```
+
+## Datasets
+
+`data/trajectory/` ships 15 measured DF1204 tractor trajectories at 1 Hz, three per
+operation type. See [data/trajectory/README.md](data/trajectory/README.md).
+
+| Set | Path | Count | Role |
+|---|---|---:|---|
+| TS-Tune | `data/trajectory/TS-Tune/` | 10 | Machinery refinement and Bayesian controller tuning |
+| EXP-FTT | `data/trajectory/EXP-FTT/` | 5 | Section 3.2 evaluation, one trajectory per Table 1 row |
+
+`data/trajectory/yantai_quanlujing.csv` is the raw recorded example used by the
+`section_3_2_tracking` paper case, before TPS standardisation.
+
+TS-Stat, the external 960-trajectory set of Luo et al. (2026) used only to derive
+parameter reference ranges, and EXP-MSN, the third-party satellite basemap, are documented
+but not redistributed.
+
+## Published results
+
+### Section 3.2 - In-field trajectory tracking
+
+| Trajectory type | Duration (s) | MAE (m) | RMSE (m) | Max AE (m) |
+|---|---:|---:|---:|---:|
+| Complex operation | 569 | 0.026 | 0.061 | 0.783 |
+| Regular operation | 157 | 0.033 | 0.110 | 0.746 |
+| Straight-line operation | 62 | 0.020 | 0.056 | 0.279 |
+| Bulb turn | 60 | 0.033 | 0.043 | 0.097 |
+| Fishtail turn | 84 | 0.083 | 0.139 | 0.788 |
+
+### Section 3.3 - Multi-stage agricultural navigation
+
+| Evaluation item | Result |
+|---|---|
+| Task completion | Completed |
+| Stage transition | Completed |
+| Total travel distance | 281.618 m |
+| In-field operation path length | 130.299 m |
+| Task duration | 458.250 s |
+
+Full precision, the diagnostic valid-sample scope and the per-file column definitions are
+in [data/experiment_results/README.md](data/experiment_results/README.md).
+
+## Software usability
+
+**What the platform does.** It converts a natural-language navigation specification into
+a running CARLA experiment for agricultural machinery: scene construction from satellite
+imagery, tractor physical configuration, direction-aware path tracking, and quantitative
+evaluation of either a single in-field trajectory or a whole multi-stage operation.
+
+**What it is validated for.** Low-speed tractor navigation (below roughly 8 km/h) on
+farmland and farm roads, with large-radius headland turns and forward/reverse switching.
+Only the tractor machinery type is implemented; another type is rejected rather than
+silently approximated.
+
+**What it does not do.** The physics model reproduces macroscopic tractor motion, not
+soil-tyre interaction: slope-induced slip, operation resistance and drawbar load are not
+simulated. Multimodal sensor-data generation is not included. Simulated results support
+pre-deployment debugging and workflow verification, and do not replace final field
+validation.
+
+**Prerequisites.** A working CARLA 0.9.15 installation is required for any execution. The
+prompt-first workflow additionally requires an LLM API key. The offline audit, the
+geometry preview and the input-preparation modes run without either.
+
+## Reproducibility
+
+Every published number can be re-derived offline from the shipped raw logs, and the
+experiments can be re-run in CARLA from a frozen configuration. The exact commands, the
+file-by-file mapping from result file to table column, the deterministic and
+machine-dependent parts of the pipeline, and the known limitations are documented in
+[docs/reproducing_paper_results.md](docs/reproducing_paper_results.md).
+
+
+## Tests
+
+```bash
+python scripts/audit_paper_results.py
+python -m compileall -q agri_carla roadrunner_mcp scripts tests
 python -m unittest discover -s tests -v
 ```
 
-The project is a research prototype. Generated scenes and simulated navigation
-results do not replace final field validation.
-
 ## License
 
-This project is released under the [MIT License](LICENSE).
+Released under the [MIT License](LICENSE).

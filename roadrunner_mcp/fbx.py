@@ -217,7 +217,7 @@ References:  {{
 }}
 Definitions:  {{
   Version: 100
-  Count: 5
+  Count: {5 * layer_count}
   ObjectType: "Geometry" {{
     Count: {layer_count}
   }}
@@ -308,7 +308,7 @@ def _fmt(value: float) -> str:
     """将浮点数压缩为适合 FBX 文本的稳定表示。"""
     if abs(value) < 1e-9:
         value = 0.0
-    return f"{value:.6f}".rstrip("0").rstrip(".")
+    return f"{value:.9f}".rstrip("0").rstrip(".")
 
 
 def _escape_name(value: str) -> str:

@@ -52,7 +52,7 @@ def summarize_tick_records(record_csv: str | Path, output_csv: str | Path | None
 def task_level_summary(
     task_completed: bool,
     stage_transition_completed: bool,
-    forward_reverse_completed: bool,
+    forward_reverse_completed: bool | None,
     collision_count: int,
     total_distance_m: float,
     operation_path_length_m: float,
@@ -77,7 +77,8 @@ def task_level_summary(
         {
             "evaluation_item": "Forward/reverse operation",
             "description": "Whether forward and reverse segments were executed correctly",
-            "result": "Completed" if forward_reverse_completed else "Failed",
+            "result": ("Not applicable (forward-only task)" if forward_reverse_completed is None
+                       else "Completed" if forward_reverse_completed else "Failed"),
         },
         {
             "evaluation_item": "Collision event",

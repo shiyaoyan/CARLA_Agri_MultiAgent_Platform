@@ -1,4 +1,0 @@
-I want to test a full-process agricultural navigation task on the already imported CARLA map YantaiTrackingField.
-Use the tractor blueprint vehicle.tractor.tractor.
-The tractor should start from the parking area, enter the farm road, drive to the field entrance, perform boustrophedon field operation with a 3 m working width and bulb turns at the headland, then leave the field, return along the farm road and stop at the parking area.
-Please record task completion, stage transition, collision events, total travel distance, operation path length and total task duration, and output the travelled path plot and evaluation table.

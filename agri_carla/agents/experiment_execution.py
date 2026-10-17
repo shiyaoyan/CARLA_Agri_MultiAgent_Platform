@@ -87,14 +87,14 @@ class ExperimentExecutionAgent:
         processed_csv: str | Path | None = None,
         config: TrackingExperimentConfig | None = None,
         parameter_optimization_set_dir: str | Path | None = None,
-        independent_test_set_dir: str | Path | None = None,
+        independent_validation_set_dir: str | Path | None = None,
         processed_dataset_dir: str | Path | None = None,
         context=None,
     ) -> dict[str, Any]:
         """执行固定参数跟踪实验或带贝叶斯优化的多轮跟踪实验。
 
         ``controller_optimization.enabled`` 是两种运行方式的唯一开关。
-        开启时先准备参数优化集和独立测试集，再把每组候选参数交给 CIA；
+        开启时先准备多轨迹参数优化集和独立验证集，再把每组候选参数交给 CIA；
         关闭时仅对指定轨迹运行一次固定参数实验。
         """
         experiment_config = config or TrackingExperimentConfig()
@@ -102,37 +102,18 @@ class ExperimentExecutionAgent:
             experiment_config.controller_optimization
         )
         if optimization_config.enabled:
-            # 兼容单轨迹调用：没有显式优化集目录时，将当前轨迹作为优化数据。
-            fallback_optimization_csv = trajectory_csv
-            if (
-                parameter_optimization_set_dir is None
-                and trajectory_csv is not None
-                and processed_csv is not None
-            ):
-                if context is None:
-                    fallback_optimization_csv = self.preprocess_trajectory(
-                        trajectory_csv,
-                        processed_csv,
-                    )
-                else:
-                    fallback_optimization_csv = self.preprocess_trajectory(
-                        trajectory_csv,
-                        processed_csv,
-                        context=context,
-                    )
             optimization_csvs = self._prepare_dataset(
                 directory=parameter_optimization_set_dir,
-                fallback_csv=fallback_optimization_csv,
                 processed_dataset_dir=processed_dataset_dir,
                 subset_name="parameter_optimization_set",
+                minimum_csvs=2,
                 context=context,
             )
-            test_csvs = self._prepare_dataset(
-                directory=independent_test_set_dir,
-                fallback_csv=None,
+            validation_csvs = self._prepare_dataset(
+                directory=independent_validation_set_dir,
                 processed_dataset_dir=processed_dataset_dir,
-                subset_name="independent_test_set",
-                required=False,
+                subset_name="independent_validation_set",
+                minimum_csvs=2,
                 context=context,
             )
             return self._run_tracking_with_status(
@@ -140,8 +121,8 @@ class ExperimentExecutionAgent:
                 operation="bayesian_controller_optimization",
                 callback=lambda: self.controller_agent_class.run_self_optimization(
                     config=optimization_config,
-                    parameter_optimization_csvs=optimization_csvs,
-                    independent_test_csvs=test_csvs,
+                    optimization_csvs=optimization_csvs,
+                    validation_csvs=validation_csvs,
                     experiment_config=experiment_config,
                     run_trial=lambda trial_config, trial_csv: TrackingExperimentRunner(
                         trial_config,
@@ -193,40 +174,34 @@ class ExperimentExecutionAgent:
         self,
         *,
         directory: str | Path | None,
-        fallback_csv: str | Path | None,
         processed_dataset_dir: str | Path | None,
         subset_name: str,
-        required: bool = True,
+        minimum_csvs: int,
         context=None,
     ) -> list[Path]:
         """收集某一数据子集，并按需调用 TPS 生成标准化副本。
 
-        参数优化集必须非空；独立测试集可缺省。若指定
+        参数优化集与独立验证集都必须包含多条轨迹。若指定
         ``processed_dataset_dir``，原始 CSV 不会被覆盖，而是在对应子目录中
         生成同名标准化文件。
         """
-        if directory:
-            dataset_dir = Path(directory)
-            if not dataset_dir.is_dir():
-                raise FileNotFoundError(
-                    f"{subset_name} directory does not exist: {dataset_dir}"
-                )
-            source_csvs = sorted(
-                path for path in dataset_dir.glob("*.csv") if path.is_file()
-            )
-            if not source_csvs:
-                raise ValueError(
-                    f"{subset_name} contains no CSV files: {dataset_dir}"
-                )
-        elif fallback_csv is not None:
-            source_csvs = [Path(fallback_csv)]
-        elif required:
+        if directory is None:
             raise ValueError(
-                "Provide parameter_optimization_set_dir or trajectory_csv when "
-                "controller optimization is enabled."
+                f"Provide {subset_name}_dir when controller optimization is enabled."
             )
-        else:
-            return []
+        dataset_dir = Path(directory)
+        if not dataset_dir.is_dir():
+            raise FileNotFoundError(
+                f"{subset_name} directory does not exist: {dataset_dir}"
+            )
+        source_csvs = sorted(
+            path for path in dataset_dir.glob("*.csv") if path.is_file()
+        )
+        if len(source_csvs) < minimum_csvs:
+            raise ValueError(
+                f"{subset_name} must contain at least {minimum_csvs} trajectory "
+                f"CSV files; found {len(source_csvs)} in {dataset_dir}."
+            )
 
         if processed_dataset_dir is None:
             return source_csvs

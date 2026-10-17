@@ -1,0 +1,110 @@
+{
+  "description": "Frozen Section 3.2 configuration. These are the controller, physics, map-offset and metric-filter settings that produced the archived EXP-FTT runs in data/experiment_results/section_3_2_tracking.",
+  "tractor_physics": {
+    "mass": 5760.0,
+    "center_of_mass": -0.2,
+    "drag_coefficient": 1.0,
+    "tire_friction": 3.5,
+    "damping_rate": 1.0,
+    "max_steer_angle": 48.0,
+    "long_stiff_value": 5000.0,
+    "lat_stiff_max_load": 4.0,
+    "lat_stiff_value": 20.0,
+    "max_brake_torque": 1400.0,
+    "max_rpm": 2400.0,
+    "moi": 1.0,
+    "damping_rate_full_throttle": 0.15,
+    "damping_rate_zero_throttle_clutch_engaged": 2.0,
+    "torque_curve": [
+      [
+        0,
+        300
+      ],
+      [
+        700,
+        300
+      ],
+      [
+        1400,
+        500
+      ],
+      [
+        2100,
+        500
+      ],
+      [
+        2700,
+        500
+      ]
+    ],
+    "torque_multiplier": 1.0,
+    "gear_switch_time": 0.3,
+    "final_ratio": 5.28,
+    "forward_gears": [
+      [
+        15.2,
+        0.2,
+        0.6
+      ]
+    ],
+    "gear_ratio_multiplier": 1.0
+  },
+  "config": {
+    "host": "localhost",
+    "port": 2000,
+    "timeout": 60.0,
+    "carla_map": "",
+    "vehicle_bp": "vehicle.tractor.tractor",
+    "vehicle_type": "tractor",
+    "dt": 0.05,
+    "map_offset_x": 50.0,
+    "map_offset_y": -10.0,
+    "spawn_z": 2.0,
+    "debug_life_time": 1200.0,
+    "max_extra_time_s": 15.0,
+    "finish_speed_ms": 0.35,
+    "finish_position_error_m": 1.0,
+    "apply_agri_physics": true,
+    "trajectory_flip_y": true,
+    "metric_min_speed_ms": 0.2,
+    "metric_skip_start_s": 5.0,
+    "metric_skip_end_s": 5.0,
+    "controller": {
+      "dt": 0.05,
+      "k_pos": 0.8,
+      "max_speed_kmh": 8.0,
+      "pid": {
+        "kp": 0.95,
+        "ki": 0.22,
+        "kd": 0.03,
+        "integral_limit": 4.0,
+        "min_throttle": 0.28,
+        "max_ff_speed_ms": 2.2,
+        "ff_limit": 0.58,
+        "brake_deadband_ms": 0.35,
+        "brake_gain": 0.9
+      },
+      "pure_pursuit": {
+        "wheelbase": 2.5,
+        "max_steer_angle_deg": 48.0,
+        "fwd_lookahead_min": 1.0,
+        "fwd_lookahead_gain": 0.2,
+        "rev_lookahead_min": 0.5,
+        "rev_lookahead_gain": 0.1
+      },
+      "gear": {
+        "shift_speed_ms": 0.18,
+        "shift_neutral_s": 0.6,
+        "forward_gears": [
+          1,
+          2,
+          3
+        ],
+        "reverse_manual_gear": -1,
+        "gear_probe_interval_s": 6.0
+      }
+    },
+    "controller_optimization": null,
+    "vegetation_request": null
+  }
+}

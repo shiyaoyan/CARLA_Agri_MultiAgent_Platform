@@ -14,6 +14,7 @@ import csv
 import hashlib
 import json
 import math
+from dataclasses import fields
 from pathlib import Path
 from typing import Any
 
@@ -276,8 +277,13 @@ class PlanGenerationAgent:
             "description. When a correction image exists, trace its valid correction "
             "polygons or bands, preserve concave corners, and ignore unrelated marks. "
             "Do not convert a single point into an individual tree. "
-            "Preserve the requested tree/grass class and keep grass "
-            "visual_mode=debug_area when non-colliding farmland ground fill is requested. "
+            "Preserve the requested tree/grass class. Use grass visual_mode=mesh for "
+            "actual boundary-conforming farmland surfaces; debug_area is only an "
+            "explicitly requested diagnostic overlay, never a rendered farmland substitute. "
+            "For automatic roadside trees, set roadside_trees.enabled=true with "
+            "band_width_m, density_per_100m2, grid_spacing_m and min_spacing_m. "
+            "Their placement uses the finalized road geometry. CARLA tree props must "
+            "exist in the target blueprint library; do not claim assets were imported. "
             "Do not output color thresholds, masks, skeletons or intermediate "
             "pixel-extraction settings."
         )
@@ -301,6 +307,7 @@ class PlanGenerationAgent:
             "AVAILABLE AGENTS:\n%s\n\n"
             "OPTIONAL REQUEST TEMPLATE:\n%s\n\n"
             "TARGET JSON SCHEMA:\n%s\n\n"
+            "EXECUTION FIELD CONTRACT:\n%s\n\n"
             "For an existing CARLA scene, do not add road_scene_request. "
             "For a supplied trajectory CSV, retain its exact path. "
             "Use road_scene_request only when a new agricultural scene must be generated. "
@@ -311,10 +318,61 @@ class PlanGenerationAgent:
                 json.dumps(self.registry.describe(), ensure_ascii=False, indent=2),
                 json.dumps(template, ensure_ascii=False, indent=2),
                 json.dumps(schema, ensure_ascii=False, indent=2),
+                json.dumps(
+                    self._execution_field_contract(),
+                    ensure_ascii=False,
+                    indent=2,
+                ),
                 geometry_user_instruction,
             )
         )
         return system_prompt, user_prompt
+
+    @staticmethod
+    def _execution_field_contract() -> dict[str, Any]:
+        """返回领域执行器实际接受的字段，约束大模型不要臆造配置名。"""
+        from agri_carla.controllers.controller_optimization import (
+            ControllerSelfOptimizationConfig,
+            TrackingObjectiveConfig,
+        )
+        from agri_carla.controllers.gear_state_machine import GearStateConfig
+        from agri_carla.controllers.interface_agent import ControllerInterfaceConfig
+        from agri_carla.controllers.pid import PIDConfig
+        from agri_carla.controllers.pure_pursuit import PurePursuitConfig
+        from agri_carla.simulation.full_process_experiment import (
+            FullProcessExperimentConfig,
+        )
+        from agri_carla.simulation.tracking_experiment import TrackingExperimentConfig
+
+        names = lambda cls: [item.name for item in fields(cls)]
+        return {
+            "machinery": ["type", "model_file", "output_file"],
+            "trajectory_tracking": {
+                "experiment": [
+                    "trajectory_csv",
+                    "processed_csv",
+                    "parameter_optimization_set_dir",
+                    "independent_validation_set_dir",
+                    "processed_dataset_dir",
+                    "config",
+                ],
+                "config": names(TrackingExperimentConfig),
+                "controller": names(ControllerInterfaceConfig),
+                "controller.pid": names(PIDConfig),
+                "controller.pure_pursuit": names(PurePursuitConfig),
+                "controller.gear": names(GearStateConfig),
+                "controller_optimization": names(
+                    ControllerSelfOptimizationConfig
+                ),
+                "controller_optimization.objective": names(
+                    TrackingObjectiveConfig
+                ),
+            },
+            "full_process_navigation": {
+                "experiment": ["config"],
+                "config": names(FullProcessExperimentConfig),
+            },
+        }
 
     @staticmethod
     def _has_visual_geometry(request: dict[str, Any]) -> bool:
@@ -487,16 +545,24 @@ class PlanGenerationAgent:
                 errors.append("Missing experiment object for trajectory_tracking.")
             else:
                 has_csv = bool(experiment.get("trajectory_csv"))
-                has_dataset = bool(experiment.get("parameter_optimization_set_dir"))
-                if not has_csv and not has_dataset:
-                    errors.append(
-                        "Missing experiment.trajectory_csv or "
-                        "experiment.parameter_optimization_set_dir."
-                    )
                 config = experiment.get("config")
                 if not isinstance(config, dict):
                     errors.append("Missing experiment.config.")
                 else:
+                    optimization = config.get("controller_optimization")
+                    optimization_enabled = bool(
+                        isinstance(optimization, dict)
+                        and optimization.get("enabled")
+                    )
+                    if optimization_enabled:
+                        for key in (
+                            "parameter_optimization_set_dir",
+                            "independent_validation_set_dir",
+                        ):
+                            if not experiment.get(key):
+                                errors.append(f"Missing experiment.{key}.")
+                    elif not has_csv:
+                        errors.append("Missing experiment.trajectory_csv.")
                     if require_execution_identifiers and not config.get("carla_map"):
                         errors.append("Missing experiment.config.carla_map.")
                     if require_execution_identifiers and not config.get("vehicle_bp"):
@@ -514,6 +580,8 @@ class PlanGenerationAgent:
                     errors.append("Missing experiment.config.carla_map.")
                 if require_execution_identifiers and not config.get("vehicle_bp"):
                     errors.append("Missing experiment.config.vehicle_bp.")
+
+        errors.extend(self._execution_contract_errors(request))
 
         road_request = request.get("road_scene_request")
         if road_request is not None:
@@ -561,6 +629,33 @@ class PlanGenerationAgent:
                 exists = resolved.is_dir() if kind == "directory" else resolved.is_file()
                 if not exists:
                     errors.append("Input %s does not exist: %s." % (label, path))
+            if task_type == "trajectory_tracking":
+                experiment = request.get("experiment", {})
+                if not isinstance(experiment, dict):
+                    experiment = {}
+                config = experiment.get("config", {})
+                if not isinstance(config, dict):
+                    config = {}
+                optimization = config.get("controller_optimization", {})
+                if isinstance(optimization, dict) and optimization.get("enabled"):
+                    for key in (
+                        "parameter_optimization_set_dir",
+                        "independent_validation_set_dir",
+                    ):
+                        if not experiment.get(key):
+                            continue
+                        dataset_dir = self._resolve_path(experiment[key])
+                        if dataset_dir.is_dir():
+                            csv_count = sum(
+                                1
+                                for path in dataset_dir.glob("*.csv")
+                                if path.is_file()
+                            )
+                            if csv_count < 2:
+                                errors.append(
+                                    f"experiment.{key} must contain at least 2 "
+                                    f"trajectory CSV files; found {csv_count}."
+                                )
 
         if request.get("machinery") is None:
             warnings.append(
@@ -581,6 +676,161 @@ class PlanGenerationAgent:
                     % config["carla_map"]
                 )
         return errors, warnings
+
+    @classmethod
+    def _execution_contract_errors(
+        cls,
+        request: dict[str, Any],
+    ) -> list[str]:
+        """在规划阶段拒绝领域执行器不会读取或会导致构造失败的字段。"""
+        errors: list[str] = []
+        contract = cls._execution_field_contract()
+
+        machinery = request.get("machinery")
+        if machinery is not None:
+            if not isinstance(machinery, dict):
+                errors.append("machinery must be an object.")
+            else:
+                errors.extend(
+                    cls._unknown_field_errors(
+                        "machinery",
+                        machinery,
+                        contract["machinery"],
+                    )
+                )
+                if not str(machinery.get("type", "")).strip():
+                    errors.append("Missing machinery.type.")
+                if not str(machinery.get("output_file", "")).strip():
+                    errors.append("Missing machinery.output_file.")
+
+        task_type = request.get("task_type")
+        if task_type not in {"trajectory_tracking", "full_process_navigation"}:
+            return errors
+
+        experiment = request.get("experiment")
+        if not isinstance(experiment, dict):
+            return errors
+        task_contract = contract[task_type]
+        errors.extend(
+            cls._unknown_field_errors(
+                "experiment",
+                experiment,
+                task_contract["experiment"],
+            )
+        )
+        config = experiment.get("config")
+        if not isinstance(config, dict):
+            return errors
+        errors.extend(
+            cls._unknown_field_errors(
+                "experiment.config",
+                config,
+                task_contract["config"],
+            )
+        )
+
+        if task_type == "full_process_navigation":
+            try:
+                from agri_carla.simulation.full_process_experiment import (
+                    FullProcessExperimentConfig,
+                )
+
+                FullProcessExperimentConfig(**config)
+            except (TypeError, ValueError) as exc:
+                errors.append(
+                    "Invalid full-process execution configuration: %s" % exc
+                )
+            return errors
+
+        controller = config.get("controller")
+        if controller is not None:
+            if not isinstance(controller, dict):
+                errors.append("experiment.config.controller must be an object.")
+            else:
+                errors.extend(
+                    cls._unknown_field_errors(
+                        "experiment.config.controller",
+                        controller,
+                        task_contract["controller"],
+                    )
+                )
+                for key in ("pid", "pure_pursuit", "gear"):
+                    nested = controller.get(key)
+                    if nested is None:
+                        continue
+                    if not isinstance(nested, dict):
+                        errors.append(
+                            "experiment.config.controller.%s must be an object."
+                            % key
+                        )
+                        continue
+                    errors.extend(
+                        cls._unknown_field_errors(
+                            "experiment.config.controller.%s" % key,
+                            nested,
+                            task_contract["controller.%s" % key],
+                        )
+                    )
+
+        optimization = config.get("controller_optimization")
+        if optimization is not None:
+            if not isinstance(optimization, dict):
+                errors.append(
+                    "experiment.config.controller_optimization must be an object."
+                )
+            else:
+                errors.extend(
+                    cls._unknown_field_errors(
+                        "experiment.config.controller_optimization",
+                        optimization,
+                        task_contract["controller_optimization"],
+                    )
+                )
+                objective = optimization.get("objective")
+                if objective is not None:
+                    if not isinstance(objective, dict):
+                        errors.append(
+                            "experiment.config.controller_optimization.objective "
+                            "must be an object."
+                        )
+                    else:
+                        errors.extend(
+                            cls._unknown_field_errors(
+                                "experiment.config.controller_optimization.objective",
+                                objective,
+                                task_contract[
+                                    "controller_optimization.objective"
+                                ],
+                            )
+                        )
+
+        try:
+            from agri_carla.controllers.interface_agent import (
+                ControllerInterfaceAgent,
+            )
+            from agri_carla.simulation.tracking_experiment import (
+                TrackingExperimentConfig,
+            )
+
+            TrackingExperimentConfig.from_dict(config)
+            ControllerInterfaceAgent.self_optimization_config(optimization)
+        except (TypeError, ValueError) as exc:
+            errors.append("Invalid tracking execution configuration: %s" % exc)
+        return errors
+
+    @staticmethod
+    def _unknown_field_errors(
+        label: str,
+        data: dict[str, Any],
+        allowed: list[str],
+    ) -> list[str]:
+        unknown = sorted(set(data) - set(allowed))
+        if not unknown:
+            return []
+        return [
+            "%s contains unsupported execution fields: %s."
+            % (label, ", ".join(unknown))
+        ]
 
     @staticmethod
     def _road_scene_geometry_errors(
@@ -869,7 +1119,7 @@ class PlanGenerationAgent:
                         errors.append(
                             "%s.polygon must enclose a non-zero area." % prefix
                         )
-        if region_count == 0:
+        if region_count == 0 and not vegetation_request.get("roadside_trees", {}).get("enabled", False):
             errors.append(
                 "vegetation_request requires at least one tree or grass region."
             )
@@ -1195,7 +1445,7 @@ class PlanGenerationAgent:
                     paths.append(("experiment." + key, str(experiment[key]), "file"))
             for key in (
                 "parameter_optimization_set_dir",
-                "independent_test_set_dir",
+                "independent_validation_set_dir",
             ):
                 if experiment.get(key):
                     paths.append(("experiment." + key, str(experiment[key]), "directory"))

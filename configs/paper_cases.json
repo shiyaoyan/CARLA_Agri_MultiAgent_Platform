@@ -1,0 +1,74 @@
+{
+  "schema_version": "1.0",
+  "default_llm_config": "configs/llm/gpt_5_6_sol.json",
+  "cases": [
+    {
+      "id": "scene_generation",
+      "title": "Satellite-image agricultural scene generation",
+      "paper_section": "Section 2.2 / SGA",
+      "prompt_file": "configs/prompts/paper_cases/scene_generation.txt",
+      "data_files": [],
+      "minimum_images": 1,
+      "expected_task_type": "configuration_only",
+      "expected_steps": [
+        ["SGA", "generate_scene"],
+        ["SGA", "place_vegetation"]
+      ]
+    },
+    {
+      "id": "machinery_configuration",
+      "title": "DF1204 tractor parameter-template generation",
+      "paper_section": "Section 2.2 / MCA",
+      "prompt_file": "configs/prompts/paper_cases/machinery_configuration.txt",
+      "data_files": [],
+      "minimum_images": 0,
+      "expected_task_type": "configuration_only",
+      "expected_steps": [
+        ["MCA", "generate_machinery_template"]
+      ]
+    },
+    {
+      "id": "section_3_2_tracking",
+      "title": "Real-tractor trajectory tracking and evaluation",
+      "paper_section": "Section 3.2",
+      "prompt_file": "configs/prompts/paper_cases/section_3_2_tracking.txt",
+      "data_files": [
+        "data/trajectory/yantai_quanlujing.csv"
+      ],
+      "minimum_images": 0,
+      "expected_task_type": "trajectory_tracking",
+      "expected_steps": [
+        ["MCA", "generate_machinery_template"],
+        ["CIA", "prepare_controller"],
+        ["EEA", "run_trajectory_tracking"]
+      ]
+    },
+    {
+      "id": "section_3_2_bayesian_optimization",
+      "title": "Multi-trajectory Bayesian optimization and independent validation",
+      "paper_section": "Section 3.2 / CIA optimization",
+      "prompt_file": "configs/prompts/paper_cases/section_3_2_bayesian_optimization.txt",
+      "data_files": [],
+      "minimum_images": 0,
+      "expected_task_type": "trajectory_tracking",
+      "expected_steps": [
+        ["CIA", "prepare_controller"],
+        ["EEA", "run_trajectory_tracking"]
+      ]
+    },
+    {
+      "id": "section_3_3_full_process",
+      "title": "Yantai satellite-rebuilt two-pass full-process navigation",
+      "paper_section": "Section 3.3",
+      "prompt_file": "configs/prompts/paper_cases/section_3_3_full_process.txt",
+      "data_files": [],
+      "minimum_images": 0,
+      "expected_task_type": "full_process_navigation",
+      "expected_steps": [
+        ["MCA", "generate_machinery_template"],
+        ["CIA", "prepare_controller"],
+        ["EEA", "run_full_process_navigation"]
+      ]
+    }
+  ]
+}

@@ -9,9 +9,21 @@ CARLA_ROOT="${CARLA_ROOT:-$HOME/carla}"
 CARLA_EGG="${CARLA_EGG:-$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.15-py3.8-linux-x86_64.egg}"
 WORKER_PYTHONPATH="$PROJECT_ROOT:$CARLA_ROOT/PythonAPI/carla:$CARLA_EGG"
 MANAGER_PYTHONPATH="$PROJECT_ROOT"
+MANAGER_SCRIPT="scripts/run_crewai.py"
 
 if [[ "$#" -eq 0 ]]; then
-  MANAGER_ARGS=(--request configs/yantai_tracking_experiment_request.json)
+  MANAGER_SCRIPT="scripts/run_paper_case.py"
+  MANAGER_ARGS=(--case section_3_2_tracking --execute)
+elif [[ "$1" == "--paper-case" ]]; then
+  if [[ "$#" -lt 2 ]]; then
+    printf '%s\n' 'Usage: run_same_host_crewai_carla.sh --paper-case CASE_ID [options]' >&2
+    exit 2
+  fi
+  MANAGER_SCRIPT="scripts/run_paper_case.py"
+  shift
+  MANAGER_ARGS=(--case "$1" --execute)
+  shift
+  MANAGER_ARGS+=("$@")
 elif [[ "$1" == --* ]]; then
   MANAGER_ARGS=("$@")
 else
@@ -101,6 +113,6 @@ env \
   PYTHONPATH="$MANAGER_PYTHONPATH" \
   AGRI_CARLA_WORKER_URL="$WORKER_URL" \
   AGRI_CARLA_WORKER_AGENTS="${AGRI_CARLA_WORKER_AGENTS:-EEA}" \
-  "$MANAGER_PY" scripts/run_crewai.py \
+  "$MANAGER_PY" "$MANAGER_SCRIPT" \
   "${MANAGER_ARGS[@]}" \
   --worker-token-env AGRI_CARLA_WORKER_TOKEN

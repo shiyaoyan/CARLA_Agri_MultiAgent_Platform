@@ -639,7 +639,7 @@ class OrchestrationRuntimeTests(unittest.TestCase):
             )
 
     def test_domain_service_forwards_tracking_dataset_directories(self):
-        """EEA 执行服务应完整接收优化集、测试集和标准化输出目录。"""
+        """EEA 执行服务应完整接收优化集、验证集和标准化输出目录。"""
         service = DomainExecutionService()
         service._experiment_execution_agent = Mock()
         service._experiment_execution_agent.run_trajectory_tracking.return_value = {
@@ -652,7 +652,7 @@ class OrchestrationRuntimeTests(unittest.TestCase):
                 "task_type": "trajectory_tracking",
                 "experiment": {
                     "parameter_optimization_set_dir": "data/optimization",
-                    "independent_test_set_dir": "data/test",
+                    "independent_validation_set_dir": "data/validation",
                     "processed_dataset_dir": "outputs/processed",
                     "config": {"controller_optimization": {"enabled": True}},
                 },
@@ -661,8 +661,44 @@ class OrchestrationRuntimeTests(unittest.TestCase):
         self.assertTrue(result["optimization_enabled"])
         call = service._experiment_execution_agent.run_trajectory_tracking.call_args
         self.assertEqual(call.kwargs["parameter_optimization_set_dir"], "data/optimization")
-        self.assertEqual(call.kwargs["independent_test_set_dir"], "data/test")
+        self.assertEqual(
+            call.kwargs["independent_validation_set_dir"],
+            "data/validation",
+        )
         self.assertEqual(call.kwargs["processed_dataset_dir"], "outputs/processed")
+
+    def test_pga_rejects_undersized_bayesian_datasets_before_execution(self):
+        """严格路径校验应在启动 CARLA 前拒绝少于两条轨迹的数据集。"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            optimization_dir = root / "optimization"
+            validation_dir = root / "validation"
+            optimization_dir.mkdir()
+            validation_dir.mkdir()
+            (optimization_dir / "only.csv").touch()
+            (validation_dir / "only.csv").touch()
+            request = {
+                "task_type": "trajectory_tracking",
+                "experiment": {
+                    "parameter_optimization_set_dir": "optimization",
+                    "independent_validation_set_dir": "validation",
+                    "config": {
+                        "carla_map": "TestMap",
+                        "vehicle_bp": "vehicle.tractor.tractor",
+                        "controller_optimization": {"enabled": True},
+                    },
+                },
+            }
+
+            errors, _ = PlanGenerationAgent(project_root=root).validate_request(
+                request,
+                strict_paths=True,
+            )
+
+        self.assertEqual(
+            sum("must contain at least 2" in error for error in errors),
+            2,
+        )
 
     def test_worker_application_executes_whitelisted_step(self):
         """CARLA 执行端应异步执行领域步骤并持久化可查询终态。"""

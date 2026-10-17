@@ -1,0 +1,3 @@
+Create the DF1204 tractor machinery configuration used by this platform. Generate a configuration_only task that invokes the Machinery Configuration Agent only. Use machinery type tractor, select the existing CARLA blueprint vehicle.tractor.tractor as model_file, and write the generated parameter template to outputs/paper_cases/machinery_configuration/df1204_tractor_physics.json.
+
+Do not generate a road scene, vegetation, controller experiment or simulation result. Do not invent a different CARLA blueprint.

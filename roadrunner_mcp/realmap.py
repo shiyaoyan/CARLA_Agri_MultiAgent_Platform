@@ -74,9 +74,20 @@ class RealMapTraceSpec:
     speed_kph: float = 20.0
     scene_profile: str = "agricultural"
     description: str = ""
+    farmland_polygons: list[list[Point]] | None = None
+    junction_clearance_m: float | None = None
+    carla_0915_boundary_segment_m: float = 0.5
 
     def normalized(self) -> "RealMapTraceSpec":
         """规范道路名称、宽度、材质、比例尺和目标速度。"""
+        clearance = self.junction_clearance_m
+        boundary_segment = float(self.carla_0915_boundary_segment_m)
+        if not math.isfinite(boundary_segment) or boundary_segment < 0:
+            raise ValueError("carla_0915_boundary_segment_m must be finite and non-negative.")
+        if clearance is not None:
+            clearance = float(clearance)
+            if not math.isfinite(clearance) or clearance <= 0:
+                raise ValueError("junction_clearance_m must be finite and positive.")
         surface_roads = [
             TraceRoad(
                 road_id=sanitize_map_name(road.road_id),
@@ -101,6 +112,9 @@ class RealMapTraceSpec:
             speed_kph=max(5.0, min(60.0, float(self.speed_kph))),
             scene_profile=self.scene_profile,
             description=self.description,
+            farmland_polygons=self.farmland_polygons,
+            junction_clearance_m=clearance,
+            carla_0915_boundary_segment_m=boundary_segment,
         )
 
     def to_dict(self) -> dict[str, object]:
@@ -202,15 +216,15 @@ def generate_realmap_artifacts(spec: RealMapTraceSpec, output_dir: Path) -> Real
     import_bundle_dir = output_dir / f"{spec.map_name}_carla_import"
 
     xodr_path.write_text(xodr_text, encoding="utf-8")
-    texture_paths = _write_realmap_fbx(spec, world_roads, bounds, fbx_path)
+    texture_paths = _write_realmap_fbx(spec, world_roads, bounds, fbx_path, xodr_text)
     primary_name = f"{spec.map_name}_{_primary_surface(spec)}_diffuse.tga"
     texture_path = next(path for path in texture_paths if path.name == primary_name)
     spec_path.write_text(json.dumps(spec.to_dict(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    preview_svg_path.write_text(_build_svg_preview(spec, world_roads, bounds), encoding="utf-8")
+    preview_svg_path.write_text(_build_svg_preview(spec, world_roads, bounds, xodr_text), encoding="utf-8")
     if not _write_overlay_png(spec, overlay_candidate):
         overlay_png_path = None
 
-    # 导入包仅包含 CARLA 地图导入所必需且互相关联的三个文件。
+    # 导入包只放地图资源和 CARLA package manifest，不混入诊断 JSON。
     if import_bundle_dir.exists():
         shutil.rmtree(import_bundle_dir)
     import_bundle_dir.mkdir(parents=True, exist_ok=True)
@@ -221,6 +235,15 @@ def generate_realmap_artifacts(spec: RealMapTraceSpec, output_dir: Path) -> Real
             generated_texture,
             import_bundle_dir / generated_texture.name,
         )
+    (import_bundle_dir / f"{spec.map_name}_package.json").write_text(
+        json.dumps({"maps": [{
+            "name": spec.map_name,
+            "source": fbx_path.name,
+            "xodr": xodr_path.name,
+            "use_carla_materials": False,
+        }], "props": []}, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     return RealMapGenerationResult(
         xodr_path=xodr_path,
@@ -273,8 +296,21 @@ def _build_opendrive(
     )
 
     node_degree = _node_degree(spec)
-    junction_nodes = {node_id: index + 1 for index, node_id in enumerate(sorted(node for node, degree in node_degree.items() if degree > 1))}
-    junction_radii = _junction_radii(world_roads, set(junction_nodes))
+    # CARLA 0.9.15 MapBuilder::GetLaneNext uses ContainsRoad(link_id) to
+    # distinguish roads from junctions. Reserve IDs beyond ALL main roads and
+    # connectors; separate XML element types alone do not prevent a collision.
+    road_id_ceiling = len(world_roads) + sum(
+        degree * (degree - 1) for degree in node_degree.values() if degree > 1
+    )
+    junction_nodes = {
+        node_id: road_id_ceiling + index + 1
+        for index, node_id in enumerate(sorted(
+            node for node, degree in node_degree.items() if degree > 1
+        ))
+    }
+    junction_radii = _junction_radii(
+        world_roads, set(junction_nodes), spec.junction_clearance_m,
+    )
     endpoint_refs, trimmed_roads = _junction_endpoint_refs(
         world_roads,
         set(junction_nodes),
@@ -409,6 +445,8 @@ def _build_opendrive(
             )
             ET.SubElement(node, "laneLink", {"from": str(connection.lane_from), "to": str(connection.lane_to)})
 
+    from .carla_boundary import split_open_boundaries
+    road_count += split_open_boundaries(root, spec.carla_0915_boundary_segment_m)
     return _prettify_xml(root), road_count, len(junction_nodes), sum(len(items) for items in junction_connections.values())
 
 
@@ -581,22 +619,25 @@ def _add_lane(
         ET.SubElement(link, "predecessor", {"id": str(predecessor_lane_id)})
     if successor_lane_id is not None:
         ET.SubElement(link, "successor", {"id": str(successor_lane_id)})
-    width_slope = 0.0
+    width_c = width_d = 0.0
     if (
         end_lane_width is not None
         and road_length is not None
         and road_length > 1e-9
     ):
-        width_slope = (end_lane_width - lane_width) / road_length
+        # Smoothstep taper: zero width derivative at both connections.
+        delta = end_lane_width - lane_width
+        width_c = 3.0 * delta / road_length ** 2
+        width_d = -2.0 * delta / road_length ** 3
     ET.SubElement(
         lane,
         "width",
         {
             "sOffset": "0.0",
             "a": _fmt(lane_width),
-            "b": _fmt(width_slope),
-            "c": "0.0",
-            "d": "0.0",
+            "b": "0.0",
+            "c": _fmt(width_c),
+            "d": _fmt(width_d),
         },
     )
     ET.SubElement(
@@ -611,8 +652,11 @@ def _write_realmap_fbx(
     roads: list[WorldRoad],
     bounds: dict[str, float],
     fbx_path: Path,
+    xodr_text: str,
 ) -> list[Path]:
-    """按农田底面和各道路材质分别建立网格层并写出 FBX。"""
+    """从最终 XODR 车道足迹构建道路，合并路口重叠面后写出 FBX。"""
+    from .road_mesh import polygon_mesh, road_surface_polygons
+
     surface_order = list(dict.fromkeys(road.source.surface for road in roads))
     layer_surfaces = ["field", *surface_order]
     textures = {
@@ -626,49 +670,22 @@ def _write_realmap_fbx(
         surface: Mesh(vertices=[], faces=[])
         for surface in layer_surfaces
     }
-    _add_quad(
-        meshes["field"],
-        [
+    from .farmland import farmland_mesh
+
+    field_polygons = spec.farmland_polygons
+    if field_polygons is None:
+        field_polygons = [[
             (bounds["west"], bounds["south"]),
             (bounds["east"], bounds["south"]),
             (bounds["east"], bounds["north"]),
             (bounds["west"], bounds["north"]),
-        ],
-        -0.005,
-    )
-    for road in roads:
-        smoothed = _sample_plan_primitives(
-            _build_plan_primitives(road.polyline, corner_fraction=0.25),
-            sample_spacing_m=1.0,
-        )
-        _add_polyline_ribbon(
-            meshes[road.source.surface],
-            smoothed,
-            road.source.width_m,
-        )
-    junction_radii = _junction_radii(
-        roads,
-        {node_id for node_id, degree in _node_degree(spec).items() if degree > 1},
-    )
-    for node_id, degree in _node_degree(spec).items():
-        if degree > 1:
-            # 路口覆盖面略高于道路条带，用于遮盖多条道路汇合处的缝隙。
-            node = next(node for node in spec.nodes if node.node_id == node_id)
-            center = _pixel_to_world(spec, node.pixel)
-            incident = [
-                road for road in roads
-                if node_id in (road.source.start_node, road.source.end_node)
-            ]
-            cover_road = max(incident, key=lambda item: item.source.width_m)
-            radius = junction_radii[node_id] + max(
-                road.source.width_m for road in incident
-            ) / 2.0
-            _add_disc(
-                meshes[cover_road.source.surface],
-                center,
-                radius,
-                0.001,
-            )
+        ]]
+    meshes["field"] = farmland_mesh(field_polygons, z=-0.005)
+    surfaces = {str(road.index): road.source.surface for road in roads}
+    for surface, footprint in road_surface_polygons(
+        ET.fromstring(xodr_text), surfaces,
+    ).items():
+        meshes[surface] = polygon_mesh(footprint)
 
     layers = [
         MeshLayer(
@@ -763,7 +780,7 @@ def _add_quad(mesh: Mesh, points: list[Point], z: float) -> None:
     mesh.faces.append((base, base + 2, base + 3))
 
 
-def _build_svg_preview(spec: RealMapTraceSpec, roads: list[WorldRoad], bounds: dict[str, float]) -> str:
+def _build_svg_preview(spec: RealMapTraceSpec, roads: list[WorldRoad], bounds: dict[str, float], xodr_text: str) -> str:
     """生成真实布局道路场景的矢量预览。"""
     width = 960
     height = 720
@@ -783,21 +800,32 @@ def _build_svg_preview(spec: RealMapTraceSpec, roads: list[WorldRoad], bounds: d
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
         '<rect width="100%" height="100%" fill="#eef2e6"/>',
     ]
+    for polygon in spec.farmland_polygons or []:
+        points = " ".join(f"{sx(x):.2f},{sy(y):.2f}" for x, y in polygon)
+        lines.append(f'<polygon points="{points}" fill="#93b778" stroke="#527943" stroke-width="1.5"/>')
     preview_colors = {
         "asphalt": "#4b5563",
         "concrete": "#8b8f87",
         "gravel": "#8a735b",
         "dirt": "#7c4a2f",
     }
-    for road in roads:
-        smoothed = _sample_plan_primitives(
-            _build_plan_primitives(road.polyline, corner_fraction=0.25),
-            sample_spacing_m=1.0,
-        )
-        points = " ".join(f"{sx(x):.2f},{sy(y):.2f}" for x, y in smoothed)
-        road_color = preview_colors.get(road.source.surface, "#7c4a2f")
-        lines.append(f'<polyline points="{points}" fill="none" stroke="{road_color}" stroke-width="{max(3.0, road.source.width_m * scale):.2f}" stroke-linecap="round" stroke-linejoin="round"/>')
-        lines.append(f'<polyline points="{points}" fill="none" stroke="#1f2937" stroke-width="1.2" stroke-dasharray="7 7" opacity=".55"/>')
+    from .road_mesh import _polygons, road_surface_polygons, sample_lanes
+
+    root = ET.fromstring(xodr_text)
+    surfaces = {str(road.index): road.source.surface for road in roads}
+    for surface, footprint in road_surface_polygons(root, surfaces).items():
+        for polygon in _polygons(footprint):
+            rings = [polygon.exterior, *polygon.interiors]
+            path = " ".join(
+                "M " + " L ".join(f"{sx(x):.3f},{sy(y):.3f}" for x, y in ring.coords) + " Z"
+                for ring in rings
+            )
+            lines.append(f'<path d="{path}" fill="{preview_colors[surface]}" fill-rule="evenodd"/>')
+    for road in root.findall("road"):
+        for lane_id, samples in sample_lanes(road).items():
+            color = "#f59e0b" if road.get("junction") != "-1" else ("#38bdf8" if lane_id < 0 else "#fb7185")
+            points = " ".join(f"{sx(p.center[0]):.3f},{sy(p.center[1]):.3f}" for p in samples)
+            lines.append(f'<polyline points="{points}" fill="none" stroke="{color}" stroke-width="1" opacity=".9"/>')
     width_labels = "/".join(
         f"{width:g}" for width in sorted({road.source.width_m for road in roads})
     ) or "n/a"
@@ -806,6 +834,7 @@ def _build_svg_preview(spec: RealMapTraceSpec, roads: list[WorldRoad], bounds: d
     ) or "n/a"
     lines.append(f'<text x="32" y="38" font-family="Arial" font-size="22" font-weight="700" fill="#1f2937">{spec.map_name}</text>')
     lines.append(f'<text x="32" y="66" font-family="Arial" font-size="14" fill="#1f2937">real satellite trace, {len(roads)} roads, widths {width_labels} m, {surface_labels}</text>')
+    lines.append('<text x="32" y="88" font-family="Arial" font-size="13" fill="#1f2937">Lane centers: blue = -1, pink = +1, amber = junction (not painted road markings)</text>')
     lines.append("</svg>")
     return "\n".join(lines) + "\n"
 
@@ -914,6 +943,7 @@ def _bounds(
 ) -> dict[str, float]:
     """按卫星图实际覆盖范围建立与道路同源的局部地图边界。"""
     points = [point for road in roads for point in road.polyline]
+    points.extend(point for polygon in spec.farmland_polygons or [] for point in polygon)
     if spec.image_width_px > 0 and spec.image_height_px > 0:
         max_pixel_x = float(max(0, spec.image_width_px - 1))
         max_pixel_y = float(max(0, spec.image_height_px - 1))
@@ -941,14 +971,15 @@ def _junction_radius(roads: list[WorldRoad]) -> float:
 def _junction_radii(
     roads: list[WorldRoad],
     junction_nodes: set[str],
+    minimum_clearance_m: float | None = None,
 ) -> dict[str, float]:
     """分别按各路口的相邻道路宽度计算裁切半径，避免远处宽路放大所有路口。"""
     return {
-        node_id: _junction_radius([
+        node_id: max(minimum_clearance_m or 0.0, _junction_radius([
             road
             for road in roads
             if node_id in (road.source.start_node, road.source.end_node)
-        ])
+        ]))
         for node_id in junction_nodes
     }
 
@@ -1022,7 +1053,7 @@ def _build_plan_primitives(
         dot = min(1.0, max(-1.0, incoming[0] * outgoing[0] + incoming[1] * outgoing[1]))
         turn_angle = math.acos(dot)
         cross = incoming[0] * outgoing[1] - incoming[1] * outgoing[0]
-        if turn_angle < math.radians(1.0) or turn_angle > math.radians(175.0) or abs(cross) < 1e-6:
+        if turn_angle < 1e-6 or turn_angle > math.radians(175.0) or abs(cross) < 1e-9:
             continue
         tangent_distance = min(incoming_length, outgoing_length) * fraction
         tangent_half = math.tan(turn_angle / 2.0)
@@ -1169,7 +1200,7 @@ def _fmt(value: float) -> str:
     """生成简洁且稳定的 XML 浮点数字符串。"""
     if abs(value) < 1e-9:
         value = 0.0
-    return f"{value:.6f}".rstrip("0").rstrip(".")
+    return f"{value:.12f}".rstrip("0").rstrip(".")
 
 
 def _prettify_xml(root: ET.Element) -> str:

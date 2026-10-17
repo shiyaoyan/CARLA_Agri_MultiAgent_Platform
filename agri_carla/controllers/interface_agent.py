@@ -64,18 +64,18 @@ class ControllerInterfaceAgent:
         cls,
         *,
         config,
-        parameter_optimization_csvs: Sequence[str | Path],
-        independent_test_csvs: Sequence[str | Path] = (),
+        optimization_csvs: Sequence[str | Path],
+        validation_csvs: Sequence[str | Path],
         experiment_config,
         run_trial: Callable[[Any, str | Path], dict[str, Any]],
         progress_callback=None,
     ) -> dict[str, Any]:
-        """在优化集上搜索控制参数，并在独立测试集上评价最优参数。"""
+        """在优化集上搜索控制参数，并在独立验证集上评价锁定的参数。"""
         from .controller_optimization import ControllerSelfOptimizationSession
 
         return ControllerSelfOptimizationSession(config).run(
-            parameter_optimization_csvs=parameter_optimization_csvs,
-            independent_test_csvs=independent_test_csvs,
+            optimization_csvs=optimization_csvs,
+            validation_csvs=validation_csvs,
             experiment_config=experiment_config,
             run_trial=run_trial,
             progress_callback=progress_callback,

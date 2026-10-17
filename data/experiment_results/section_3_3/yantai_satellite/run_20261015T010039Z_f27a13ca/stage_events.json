@@ -1,0 +1,110 @@
+[
+  {
+    "event": "stage_started",
+    "index": 0,
+    "stage": "GARAGE_EXIT",
+    "time_s": 0.05
+  },
+  {
+    "event": "stage_completed",
+    "index": 0,
+    "stage": "GARAGE_EXIT",
+    "time_s": 43.0
+  },
+  {
+    "event": "stage_started",
+    "index": 1,
+    "stage": "ROAD_NAV",
+    "time_s": 43.050000000000004
+  },
+  {
+    "event": "stage_completed",
+    "index": 1,
+    "stage": "ROAD_NAV",
+    "time_s": 56.800000000000004
+  },
+  {
+    "event": "stage_started",
+    "index": 2,
+    "stage": "OFFROAD_APPROACH",
+    "time_s": 56.85
+  },
+  {
+    "event": "stage_completed",
+    "index": 2,
+    "stage": "OFFROAD_APPROACH",
+    "time_s": 91.4
+  },
+  {
+    "event": "stage_started",
+    "index": 3,
+    "stage": "HARVEST_LINE",
+    "time_s": 91.45
+  },
+  {
+    "event": "stage_completed",
+    "index": 3,
+    "stage": "HARVEST_LINE",
+    "time_s": 195.60000000000002
+  },
+  {
+    "event": "stage_started",
+    "index": 4,
+    "stage": "TURN_BULB",
+    "time_s": 195.65
+  },
+  {
+    "event": "stage_completed",
+    "index": 4,
+    "stage": "TURN_BULB",
+    "time_s": 256.1
+  },
+  {
+    "event": "stage_started",
+    "index": 5,
+    "stage": "HARVEST_LINE",
+    "time_s": 256.15000000000003
+  },
+  {
+    "event": "stage_completed",
+    "index": 5,
+    "stage": "HARVEST_LINE",
+    "time_s": 360.25
+  },
+  {
+    "event": "stage_started",
+    "index": 6,
+    "stage": "FIELD_EXIT",
+    "time_s": 360.3
+  },
+  {
+    "event": "stage_completed",
+    "index": 6,
+    "stage": "FIELD_EXIT",
+    "time_s": 393.65000000000003
+  },
+  {
+    "event": "stage_started",
+    "index": 7,
+    "stage": "ROAD_RETURN",
+    "time_s": 393.70000000000005
+  },
+  {
+    "event": "stage_completed",
+    "index": 7,
+    "stage": "ROAD_RETURN",
+    "time_s": 408.25
+  },
+  {
+    "event": "stage_started",
+    "index": 8,
+    "stage": "GARAGE_RETURN",
+    "time_s": 408.3
+  },
+  {
+    "event": "stage_completed",
+    "index": 8,
+    "stage": "GARAGE_RETURN",
+    "time_s": 458.25
+  }
+]

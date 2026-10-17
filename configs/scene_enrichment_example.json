@@ -1,0 +1,39 @@
+{
+  "task_type": "configuration_only",
+  "natural_language_request": "Generate the confirmed access road, a farmland surface within the supplied concave boundary, and roadside trees with the specified density and spacing.",
+  "road_scene_output_dir": "outputs/scene_enrichment_example",
+  "road_scene_request": {
+    "map_name": "EnrichmentExample",
+    "image_width_px": 140,
+    "image_height_px": 120,
+    "meters_per_pixel": 1.0,
+    "north_up": true,
+    "geo_anchor": {"latitude": 37.0, "longitude": 121.0, "pixel_x": 0, "pixel_y": 0},
+    "nodes": [{"node_id": "west", "pixel": [10, 45]}, {"node_id": "east", "pixel": [130, 45]}],
+    "roads": [{"road_id": "access", "start_node": "west", "end_node": "east", "pixel_polyline": [[10, 45], [130, 45]], "width_m": 6.0, "surface": "dirt"}]
+  },
+  "vegetation_request": {
+    "carla_map": "EnrichmentExample",
+    "image_width_px": 140,
+    "image_height_px": 120,
+    "meters_per_pixel": 1.0,
+    "dry_run": true,
+    "output_dir": "outputs/scene_enrichment_example/vegetation",
+    "road_clearance_m": 1.5,
+    "roadside_trees": {
+      "enabled": true,
+      "band_width_m": 6.0,
+      "density_per_100m2": 2.0,
+      "grid_spacing_m": 3.0,
+      "min_spacing_m": 4.0,
+      "blueprint_filter": "static.prop.tree*"
+    },
+    "tree_regions": [],
+    "grass_regions": [{
+      "name": "concave_field",
+      "coordinate_mode": "pixel",
+      "polygon": [[20, 60], [120, 60], [120, 90], [75, 90], [75, 110], [20, 110]],
+      "visual_mode": "mesh"
+    }]
+  }
+}

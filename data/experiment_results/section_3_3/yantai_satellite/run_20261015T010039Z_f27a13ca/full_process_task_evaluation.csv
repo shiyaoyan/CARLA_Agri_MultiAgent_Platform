@@ -1,0 +1,8 @@
+﻿evaluation_item,description,result
+Task completion,"Whether the vehicle completed departure, road driving, field entry, field operation and return",Completed
+Stage transition,Whether different navigation stages were switched successfully,Completed
+Forward/reverse operation,Whether forward and reverse segments were executed correctly,Not applicable (forward-only task)
+Collision event,Whether collision occurred during the task,0
+Total travel distance,Simulated travel distance during the task,281.618 m
+Operation path length,Path length inside the field operation area,130.299 m
+Task duration,Total simulation time,458.250 s
